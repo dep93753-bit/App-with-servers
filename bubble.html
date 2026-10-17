@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Bubble Shooter</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--text:#f1f5f9;--accent:#38bdf8}
+*{box-sizing:border-box}body{margin:0;font-family:"Outfit",sans-serif;background:linear-gradient(160deg,#020617,var(--bg));min-height:100vh;color:var(--text)}
+.wrapper{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
+.hidden{display:none!important}
+.game-screen{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center}
+.header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%;margin-bottom:10px}
+.header h1{margin:0;font-size:clamp(1.35rem,4vw,2rem)}
+.header-actions{display:flex;gap:8px;margin-left:auto;align-items:center}
+.score{font-weight:700;color:var(--accent)}
+.btn{padding:10px 14px;border:none;border-radius:8px;background:rgba(255,255,255,.25);color:inherit;font-family:inherit;font-weight:600;cursor:pointer}
+.canvas-wrap{width:100%;max-width:400px;display:flex;flex-direction:column}
+#gameCanvas{width:100%;height:auto;display:block;background:var(--panel);border-radius:12px;touch-action:none}
+.fire-btn{width:100%;margin-top:10px;background:var(--accent);color:#0f172a}
+.result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+.result-box{background:var(--panel);border-radius:16px;padding:28px;max-width:400px;width:100%;text-align:center}
+.result-box h2{color:var(--accent);margin:0 0 8px}
+.result-actions{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+
+</style></head><body>
+<div class="wrapper"><div id="gameScreen" class="game-screen">
+  <header class="header"><h1>Bubble Shooter</h1><span class="ammo-badge" id="ammoBadge">Ammo: 5</span><div class="header-actions"><span id="scoreDisplay" class="score">Score: 0</span><button type="button" id="newGameBtn" class="btn">New Game</button></div></header>
+  <div class="canvas-wrap"><canvas id="gameCanvas" width="400" height="560"></canvas><button type="button" id="fireBtn" class="btn fire-btn">Fire</button></div>
+  <div id="resultOverlay" class="result-overlay hidden"><div class="result-box"><h2 id="resultTitle"></h2><p id="resultMsg"></p><div class="result-actions"><button type="button" id="playAgainBtn" class="btn">Play Again</button></div></div></div>
+</div></div>
+<script src="quiz-modal.js"></script>
+<script>
+(function(){
+"use strict";
+/* QUESTIONS and QUIZ_ID come from quiz-modal.js (sent by the app) */
+var COLORS=["#ef4444","#3b82f6","#22c55e","#eab308","#a855f7","#f97316"];
+var CFG={colors:5,rows:5,speed:8};
+var COLS=8,R=18,ROW_H=R*1.75;
+var canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d");
+var state={grid:[],score:0,aimAngle:-Math.PI/2,current:0,next:0,flying:null,running:false,gameOver:false};
+var AMMO_START=5,AMMO_PER_CORRECT=5,AMMO_PER_WRONG=1;
+var ammo=AMMO_START,quizIdx=0,quizOpen=false,quizAnswers=[];
+var ammoBadge=document.getElementById("ammoBadge");
+function updateAmmoUI(){ammoBadge.textContent="Ammo: "+ammo;ammoBadge.classList.toggle("low",ammo<=1);}
+
+var openQuiz = makeQuizModal({isOpen:function(){return quizOpen;},setOpen:function(v){quizOpen=v;},getAmmo:function(){return ammo;},setAmmo:function(v){ammo=v;},getIdx:function(){return quizIdx;},setIdx:function(v){quizIdx=v;},gainCorrect:AMMO_PER_CORRECT,gainWrong:AMMO_PER_WRONG,onUpdate:updateAmmoUI,onAnswer:function(qIdx,correct){quizAnswers.push({qIdx:qIdx,correct:correct});}});
+function colsInRow(r){return r%2===0?COLS:COLS-1;}
+function cellCenter(r,c){var odd=r%2===1;return{x:R+c*(R*2)+(odd?R:0)+8,y:R+r*ROW_H+8};}
+function randomColor(){return Math.floor(Math.random()*CFG.colors);}
+function initGrid(){state.grid=[];for(var r=0;r<CFG.rows;r++){var row=[];var n=colsInRow(r);for(var c=0;c<n;c++)row.push(randomColor());state.grid.push(row);}}
+function neighbors(row,col){var odd=row%2===1;var deltas=odd?[[0,-1],[0,1],[-1,0],[-1,1],[1,0],[1,1]]:[[0,-1],[0,1],[-1,-1],[-1,0],[1,-1],[1,0]];var out=[];for(var i=0;i<deltas.length;i++){var rr=row+deltas[i][0],cc=col+deltas[i][1];if(rr>=0&&rr<state.grid.length&&cc>=0&&cc<state.grid[rr].length&&state.grid[rr][cc]!==null)out.push([rr,cc]);}return out;}
+function findCluster(row,col){var color=state.grid[row][col];if(color===null)return[];var visited=new Set();var stack=[[row,col]];var cluster=[];while(stack.length){var p=stack.pop();var r=p[0],c=p[1];var k=r+","+c;if(visited.has(k))continue;visited.add(k);if(state.grid[r][c]!==color)continue;cluster.push([r,c]);neighbors(r,c).forEach(function(n){stack.push(n);});}return cluster;}
+function connectedToCeiling(){var visited=new Set();var stack=[];if(!state.grid.length)return visited;for(var c=0;c<state.grid[0].length;c++)if(state.grid[0][c]!==null)stack.push([0,c]);while(stack.length){var p=stack.pop();var r=p[0],cc=p[1];var k=r+","+cc;if(visited.has(k))continue;visited.add(k);neighbors(r,cc).forEach(function(n){stack.push(n);});}return visited;}
+function dropOrphans(){var connected=connectedToCeiling();var dropped=0;for(var r=0;r<state.grid.length;r++)for(var c=0;c<state.grid[r].length;c++)if(state.grid[r][c]!==null&&!connected.has(r+","+c)){state.grid[r][c]=null;dropped++;}while(state.grid.length&&state.grid[state.grid.length-1].every(function(v){return v===null;}))state.grid.pop();return dropped;}
+function snapBubble(x,y,color){var best=null,bestDist=Infinity;var maxRows=Math.max(state.grid.length+1,CFG.rows+2);for(var r=0;r<maxRows;r++){var n=colsInRow(r);if(!state.grid[r])state.grid[r]=Array(n).fill(null);while(state.grid[r].length<n)state.grid[r].push(null);for(var c=0;c<n;c++){if(state.grid[r][c]!==null)continue;var p=cellCenter(r,c);var d=Math.hypot(p.x-x,p.y-y);if(d<bestDist){bestDist=d;best={r:r,c:c};}}}if(!best)return;var nn=colsInRow(best.r);if(!state.grid[best.r])state.grid[best.r]=Array(nn).fill(null);state.grid[best.r][best.c]=color;var cl=findCluster(best.r,best.c);if(cl.length>=3){cl.forEach(function(p){state.grid[p[0]][p[1]]=null;});state.score+=cl.length*10;var dr=dropOrphans();state.score+=dr*15;}document.getElementById("scoreDisplay").textContent="Score: "+state.score;checkEnd();}
+function checkEnd(){var any=false,tooLow=false;var dangerY=canvas.height-80;for(var r=0;r<state.grid.length;r++)for(var c=0;c<state.grid[r].length;c++)if(state.grid[r][c]!==null){any=true;if(cellCenter(r,c).y+R>dangerY)tooLow=true;}if(!any)endGame(true);else if(tooLow)endGame(false);}
+function endGame(won){state.gameOver=true;state.running=false;state.flying=null;document.getElementById("resultTitle").textContent=won?"You cleared it!":"Game Over";document.getElementById("resultMsg").textContent="Score: "+state.score;document.getElementById("resultOverlay").classList.remove("hidden");try{window.parent.postMessage({type:'gameEnd',game:'bubble',quizId:QUIZ_ID,won:won,score:state.score,answers:quizAnswers},'*');}catch(e){}}
+function shoot(){if(!state.running||state.flying||state.gameOver)return;if(ammo<=0){openQuiz(function(){});return;}ammo--;updateAmmoUI();var speed=CFG.speed;state.flying={x:canvas.width/2,y:canvas.height-40,vx:Math.cos(state.aimAngle)*speed,vy:Math.sin(state.aimAngle)*speed,color:state.current};state.current=state.next;state.next=randomColor();}
+function update(){if(!state.flying)return;var b=state.flying;b.x+=b.vx;b.y+=b.vy;if(b.x-R<0){b.x=R;b.vx*=-1;}if(b.x+R>canvas.width){b.x=canvas.width-R;b.vx*=-1;}if(b.y-R<=0){snapBubble(b.x,R,b.color);state.flying=null;return;}for(var r=0;r<state.grid.length;r++)for(var c=0;c<state.grid[r].length;c++){if(state.grid[r][c]===null)continue;var p=cellCenter(r,c);if(Math.hypot(p.x-b.x,p.y-b.y)<R*1.85){snapBubble(b.x,b.y,b.color);state.flying=null;return;}}}
+function drawBubble(x,y,colorIndex){ctx.beginPath();ctx.arc(x,y,R-1,0,Math.PI*2);ctx.fillStyle=COLORS[colorIndex];ctx.fill();ctx.strokeStyle="rgba(255,255,255,0.35)";ctx.lineWidth=2;ctx.stroke();}
+function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#1e293b";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle="rgba(239,68,68,0.5)";ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(0,canvas.height-80);ctx.lineTo(canvas.width,canvas.height-80);ctx.stroke();ctx.setLineDash([]);for(var r=0;r<state.grid.length;r++)for(var c=0;c<state.grid[r].length;c++){if(state.grid[r][c]===null)continue;var p=cellCenter(r,c);drawBubble(p.x,p.y,state.grid[r][c]);}if(!state.flying&&state.running){var sx=canvas.width/2,sy=canvas.height-40;ctx.strokeStyle="rgba(255,255,255,0.35)";ctx.beginPath();ctx.moveTo(sx,sy);var ax=sx,ay=sy,vx=Math.cos(state.aimAngle),vy=Math.sin(state.aimAngle);for(var i=0;i<80;i++){ax+=vx*8;ay+=vy*8;if(ax<R||ax>canvas.width-R)vx*=-1;if(ay<0)break;ctx.lineTo(ax,ay);}ctx.stroke();}if(state.flying)drawBubble(state.flying.x,state.flying.y,state.flying.color);else if(state.running)drawBubble(canvas.width/2,canvas.height-40,state.current);ctx.fillStyle="#94a3b8";ctx.font="12px Outfit, sans-serif";ctx.fillText("Next",12,canvas.height-12);drawBubble(50,canvas.height-28,state.next);}
+function loop(){if(!state.running)return;update();draw();requestAnimationFrame(loop);}
+function setAimFromEvent(e){var rect=canvas.getBoundingClientRect();var sx=rect.width/canvas.width;var clientX=e.touches?e.touches[0].clientX:e.clientX;var clientY=e.touches?e.touches[0].clientY:e.clientY;var x=(clientX-rect.left)/sx;var y=(clientY-rect.top)/sx;var ax=canvas.width/2,ay=canvas.height-40;var angle=Math.atan2(y-ay,x-ax);if(angle>0)angle=-0.2;state.aimAngle=Math.max(-Math.PI+0.2,Math.min(-0.2,angle));}
+function startNewGame(){initGrid();state.score=0;state.current=randomColor();state.next=randomColor();state.flying=null;state.gameOver=false;state.running=true;state.aimAngle=-Math.PI/2;ammo=AMMO_START;quizAnswers=[];updateAmmoUI();document.getElementById("scoreDisplay").textContent="Score: 0";document.getElementById("resultOverlay").classList.add("hidden");draw();requestAnimationFrame(loop);}
+document.getElementById("newGameBtn").addEventListener("click",startNewGame);
+document.getElementById("playAgainBtn").addEventListener("click",startNewGame);
+document.getElementById("fireBtn").addEventListener("click",shoot);
+canvas.addEventListener("mousemove",setAimFromEvent);
+canvas.addEventListener("touchmove",function(e){e.preventDefault();setAimFromEvent(e);},{passive:false});
+canvas.addEventListener("click",shoot);
+canvas.addEventListener("touchend",function(e){e.preventDefault();shoot();});
+updateAmmoUI();startNewGame();
+})();
+</script></body></html>
