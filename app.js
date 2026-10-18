@@ -47,6 +47,8 @@ let studentTab = 'home';
 const KEY = 'adminhub_classes_v1';
 const RKEY = 'adminhub_remote_v1';      // classes a student loaded from the cloud (kept apart from a teacher's own)
 let cloudScores = {};                    // classId -> score docs from Firestore (teacher side)
+let publishTimer = null, refreshTimer = null, studentWatchCode = null;   // cloud-sync state (declared early: save() can run at startup)
+const cloudWatched = new Set();
 let railOpen = true, classes = [], activeId = null, tab = 'activity', memStore = null, ownOpen = true;
 try { railOpen = localStorage.getItem('adminhub_rail_open') !== '0'; } catch (e) {}
 try { ownOpen = localStorage.getItem('adminhub_owned_open') !== '0'; } catch (e) {}
@@ -1102,7 +1104,6 @@ function loadRemote() {
 }
 // Teacher: question sets students may see for a class (assigned to it, or open for practice)
 const qsetsFor = c => qsets.filter(q => !q._remote && (q.practiceAllowed !== false || (q.assignedTo || []).includes(c.id)));
-let publishTimer = null;
 function cloudPublishSoon() { clearTimeout(publishTimer); publishTimer = setTimeout(cloudPublishAll, 1500); }
 async function cloudPublishAll() {
   if (!(await Cloud.ready)) return;
@@ -1110,9 +1111,7 @@ async function cloudPublishAll() {
   if (uiMode === 'teacher') Cloud.saveQsets(qsets.filter(q => !q._remote)).catch(e => console.warn('Question backup failed', e));
   cloudWatchTeacher();
 }
-let refreshTimer = null;
 function cloudRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (uiMode === 'teacher') render(); }, 600); }
-const cloudWatched = new Set();
 function cloudWatchTeacher() {            // pull students + scores from students' devices into the teacher's screens
   classes.filter(c => !c.remote).forEach(c => {
     if (cloudWatched.has(c.id)) return; cloudWatched.add(c.id);
@@ -1151,7 +1150,6 @@ function applyRemoteClass(d) {
   window.addEventListener('cloudstatus', paint); paint();
   document.body.appendChild(b);
 })();
-let studentWatchCode = null;
 function cloudWatchStudent() {            // keep a student's posts / assignments / question sets live
   if (!studentSession) return;
   const c = classes.find(x => x.id === studentSession.classId);
