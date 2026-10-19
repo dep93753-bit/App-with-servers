@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Block Blast</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  body{background:linear-gradient(160deg,#020617,#0f172a);color:#f1f5f9;font-family:"Outfit",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
+  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;margin-bottom:10px}.hud b{color:#38bdf8}
+  #box{position:relative;background:#0b0e14;border-radius:12px;box-shadow:inset 0 0 15px rgba(0,0,0,.8);overflow:hidden;touch-action:none}
+  .blk{position:absolute;border-radius:8px;cursor:pointer;transition:transform .25s cubic-bezier(.4,0,.2,1),opacity .2s;will-change:transform;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+  .gone{transform:scale(0)!important;opacity:0;pointer-events:none}
+  .fx{position:absolute;left:0;right:0;top:40%;text-align:center;font-weight:900;font-size:26px;pointer-events:none;text-shadow:0 2px 8px #000;animation:up .8s ease-out forwards;z-index:9}
+  @keyframes up{to{transform:translateY(-50px);opacity:0}}
+  .hint{margin-top:12px;font-size:13px;color:#94a3b8;text-align:center;max-width:320px;line-height:1.4}
+  .btn{padding:10px 18px;border:none;border-radius:8px;background:rgba(255,255,255,.22);color:inherit;font-family:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="hud"><span>Score <b id="sc">0</b>/<b id="tg">500</b></span><span>Moves <b id="am">0</b></span><span>Strikes <b id="wr">0</b>/3</span></div>
+<div id="box"></div>
+<div class="hint">Tap a group of 2 or more same-colored blocks to pop them. Each pop uses a move — answer a question when you run out.</div>
+
+<script src="quiz-modal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var R = 6, C = 6, G = 8, TARGET = 500, COLORS = ['#f85149', '#58a6ff', '#3fb950', '#d29922'];
+  var BS = Math.max(34, Math.min(50, Math.floor((Math.min(innerWidth, 440) - 40 - G * (C + 1)) / C)));
+  var $ = function (i) { return document.getElementById(i); };
+  var box = $('box'), grid, els, score, busy;
+  box.style.width = C * BS + (C + 1) * G + 'px'; box.style.height = R * BS + (R + 1) * G + 'px';
+
+  var K = GameKit({ id: 'blockblast', ammo: 8, gainCorrect: 6, gainWrong: 1, maxWrong: 3, onUpdate: hud, getScore: function () { return score; }, restart: start });
+
+  function hud() { $('sc').textContent = score; $('am').textContent = K.ammo; $('wr').textContent = K.wrong; }
+  function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function pos(r, c) { return 'translate(' + (c * (BS + G) + G) + 'px,' + (r * (BS + G) + G) + 'px)'; }
+  function rndColor() { return COLORS[Math.random() * COLORS.length | 0]; }
+
+  function make(r, c, fall) {
+    var el = document.createElement('div'), col = rndColor();
+    el.className = 'blk'; el.style.width = el.style.height = BS + 'px'; el.style.background = col;
+    el.dataset.r = r; el.dataset.c = c; grid[r][c] = col; els[r][c] = el;
+    el.style.transform = fall ? 'translate(' + (c * (BS + G) + G) + 'px,' + (-BS * 2) + 'px)' : pos(r, c);
+    box.appendChild(el);
+    if (fall) { el.getBoundingClientRect(); el.style.transform = pos(r, c); }   // force a layout so it animates down
+  }
+  function flood(r, c) {
+    var col = grid[r][c], seen = {}, stack = [[r, c]], out = [];
+    while (stack.length) {
+      var p = stack.pop(), k = p[0] + ',' + p[1];
+      if (seen[k] || p[0] < 0 || p[0] >= R || p[1] < 0 || p[1] >= C || grid[p[0]][p[1]] !== col) continue;
+      seen[k] = 1; out.push(p); stack.push([p[0] + 1, p[1]], [p[0] - 1, p[1]], [p[0], p[1] + 1], [p[0], p[1] - 1]);
+    }
+    return out;
+  }
+  function hasMove() {
+    for (var r = 0; r < R; r++) for (var c = 0; c < C; c++)
+      if (grid[r][c] && ((c + 1 < C && grid[r][c + 1] === grid[r][c]) || (r + 1 < R && grid[r + 1][c] === grid[r][c]))) return true;
+    return false;
+  }
+  function reshuffle() {
+    do { for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) { grid[r][c] = rndColor(); els[r][c].style.background = grid[r][c]; } } while (!hasMove());
+  }
+  function say(t) {
+    var f = document.createElement('div'); f.className = 'fx'; f.textContent = t; box.appendChild(f); setTimeout(function () { f.remove(); }, 800);
+  }
+  function gravity() {
+    for (var c = 0; c < C; c++) {
+      var w = R - 1;
+      for (var r = R - 1; r >= 0; r--) if (grid[r][c]) {
+        if (w !== r) { grid[w][c] = grid[r][c]; els[w][c] = els[r][c]; grid[r][c] = null; els[r][c] = null; els[w][c].dataset.r = w; els[w][c].style.transform = pos(w, c); }
+        w--;
+      }
+      for (r = w; r >= 0; r--) make(r, c, true);
+    }
+  }
+  async function pop(r, c) {
+    var set = flood(r, c);
+    if (set.length < 2) return;
+    busy = true; K.ammo--;
+    score += set.length * 10; say('+' + set.length * 10); hud();
+    set.forEach(function (p) { els[p[0]][p[1]].classList.add('gone'); grid[p[0]][p[1]] = null; });
+    await delay(250);
+    set.forEach(function (p) { els[p[0]][p[1]].remove(); els[p[0]][p[1]] = null; });
+    gravity(); await delay(320);
+    if (score >= TARGET) { hud(); K.end(true); return; }
+    if (!hasMove()) reshuffle();
+    hud();
+    if (K.ammo <= 0) K.ask(function () { busy = false; }); else busy = false;
+  }
+
+  box.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest('.blk');
+    if (!b || busy || K.over) return;
+    pop(+b.dataset.r, +b.dataset.c);
+  });
+
+  function start() {
+    box.innerHTML = ''; score = 0; busy = false;
+    grid = Array.from({ length: R }, function () { return Array(C).fill(null); });
+    els = Array.from({ length: R }, function () { return Array(C).fill(null); });
+    for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) make(r, c, false);
+    if (!hasMove()) reshuffle();
+    $('tg').textContent = TARGET; hud();
+  }
+  start();
+})();
+</script>
+</body>
+</html>

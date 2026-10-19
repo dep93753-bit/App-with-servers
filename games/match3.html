@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Match 3</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  body{background:linear-gradient(160deg,#020617,#0f172a);color:#f1f5f9;font-family:"Outfit",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
+  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;margin-bottom:10px}.hud b{color:#38bdf8}
+  #box{position:relative;background:#0b0e14;border-radius:12px;box-shadow:inset 0 0 15px rgba(0,0,0,.8);overflow:hidden;touch-action:none}
+  .blk{position:absolute;border-radius:8px;cursor:pointer;transition:transform .25s cubic-bezier(.4,0,.2,1),opacity .2s;will-change:transform;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+  .blk.sel{outline:4px solid #fff;outline-offset:-4px;z-index:5;animation:pulse .7s ease-in-out infinite}
+  @keyframes pulse{50%{outline-color:#f2cc60}}
+  .gone{transform:scale(0)!important;opacity:0;pointer-events:none}
+  .shake{animation:shake .2s}@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  .fx{position:absolute;left:0;right:0;top:40%;text-align:center;font-weight:900;font-size:26px;pointer-events:none;text-shadow:0 2px 8px #000;animation:up .8s ease-out forwards;z-index:9}
+  @keyframes up{to{transform:translateY(-50px);opacity:0}}
+  .hint{margin-top:12px;font-size:13px;color:#94a3b8;text-align:center;max-width:320px;line-height:1.4}
+  .btn{padding:10px 18px;border:none;border-radius:8px;background:rgba(255,255,255,.22);color:inherit;font-family:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="hud"><span>Score <b id="sc">0</b>/<b id="tg">500</b></span><span>Moves <b id="am">0</b></span><span>Strikes <b id="wr">0</b>/3</span></div>
+<div id="box"></div>
+<div class="hint">Swipe a tile (or tap it, then tap a neighbor) to swap. Match 3 or more in a row or column. A good swap uses a move.</div>
+
+<script src="quiz-modal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var R = 6, C = 6, G = 8, TARGET = 500, COLORS = ['#f85149', '#58a6ff', '#3fb950', '#d29922'];
+  var BS = Math.max(34, Math.min(50, Math.floor((Math.min(innerWidth, 440) - 40 - G * (C + 1)) / C)));
+  var $ = function (i) { return document.getElementById(i); };
+  var box = $('box'), grid, els, score, busy, sel, down;
+  box.style.width = C * BS + (C + 1) * G + 'px'; box.style.height = R * BS + (R + 1) * G + 'px';
+
+  var K = GameKit({ id: 'match3', ammo: 8, gainCorrect: 6, gainWrong: 1, maxWrong: 3, onUpdate: hud, getScore: function () { return score; }, restart: start });
+
+  function hud() { $('sc').textContent = score; $('am').textContent = K.ammo; $('wr').textContent = K.wrong; }
+  function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function xy(r, c) { return { x: c * (BS + G) + G, y: r * (BS + G) + G }; }
+  function place(el, r, c) { var p = xy(r, c); el.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)'; el.dataset.r = r; el.dataset.c = c; }
+  function rndColor() { return COLORS[Math.random() * COLORS.length | 0]; }
+  function say(t) { var f = document.createElement('div'); f.className = 'fx'; f.textContent = t; box.appendChild(f); setTimeout(function () { f.remove(); }, 800); }
+
+  function make(r, c, color, fall) {
+    var el = document.createElement('div');
+    el.className = 'blk'; el.style.width = el.style.height = BS + 'px'; el.style.background = color;
+    grid[r][c] = color; els[r][c] = el; box.appendChild(el);
+    if (fall) { place(el, -2, c); el.getBoundingClientRect(); }       // start above the board, then animate down
+    place(el, r, c);
+  }
+  function safeColor(r, c) {                                          // a start colour that doesn't make a match yet
+    var opts = COLORS.slice().sort(function () { return Math.random() - .5; });
+    for (var i = 0; i < opts.length; i++) {
+      var k = opts[i];
+      if (c >= 2 && grid[r][c - 1] === k && grid[r][c - 2] === k) continue;
+      if (r >= 2 && grid[r - 1][c] === k && grid[r - 2][c] === k) continue;
+      return k;
+    }
+    return opts[0];
+  }
+  function matches() {
+    var m = {}, r, c, s, k;
+    for (r = 0; r < R; r++) for (s = 0, c = 1; c <= C; c++) {
+      if (!(c < C && grid[r][c] && grid[r][c] === grid[r][s])) { if (c - s >= 3) for (k = s; k < c; k++) m[r + ',' + k] = 1; s = c; }
+    }
+    for (c = 0; c < C; c++) for (s = 0, r = 1; r <= R; r++) {
+      if (!(r < R && grid[r][c] && grid[r][c] === grid[s][c])) { if (r - s >= 3) for (k = s; k < r; k++) m[k + ',' + c] = 1; s = r; }
+    }
+    return Object.keys(m);
+  }
+  function swapData(a, b) { var t = grid[a.r][a.c]; grid[a.r][a.c] = grid[b.r][b.c]; grid[b.r][b.c] = t; }
+  function swapDom(a, b) {
+    var ea = els[a.r][a.c], eb = els[b.r][b.c];
+    els[a.r][a.c] = eb; els[b.r][b.c] = ea;
+    if (ea) place(ea, b.r, b.c); if (eb) place(eb, a.r, a.c);
+  }
+  function hasSwap() {
+    for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) for (var d = 0; d < 2; d++) {
+      var nr = r + d, nc = c + (1 - d); if (nr >= R || nc >= C) continue;
+      swapData({ r: r, c: c }, { r: nr, c: nc }); var ok = matches().length > 0; swapData({ r: r, c: c }, { r: nr, c: nc });
+      if (ok) return true;
+    }
+    return false;
+  }
+  async function shuffle() {
+    var cols = [], r, c;
+    for (r = 0; r < R; r++) for (c = 0; c < C; c++) cols.push(grid[r][c]);
+    do {
+      cols.sort(function () { return Math.random() - .5; });
+      for (var i = 0; i < cols.length; i++) grid[i / C | 0][i % C] = cols[i];
+    } while (matches().length || !hasSwap());
+    for (r = 0; r < R; r++) for (c = 0; c < C; c++) { els[r][c].className = 'blk'; els[r][c].style.background = grid[r][c]; }
+    box.classList.add('shake'); setTimeout(function () { box.classList.remove('shake'); }, 200); await delay(250);
+  }
+  function clearSel() { if (sel && els[sel.r][sel.c]) els[sel.r][sel.c].classList.remove('sel'); sel = null; }
+
+  /* ---- selection: tap a tile then a neighbour, OR swipe a tile toward a neighbour ---- */
+  function tap(r, c) {
+    if (busy || K.over || !els[r][c]) return;
+    if (!sel) { sel = { r: r, c: c }; els[r][c].classList.add('sel'); return; }
+    if (sel.r === r && sel.c === c) return clearSel();                         // tap again = deselect
+    if (Math.abs(sel.r - r) + Math.abs(sel.c - c) !== 1) {                     // not a neighbour = pick this one instead
+      clearSel(); sel = { r: r, c: c }; els[r][c].classList.add('sel'); return;
+    }
+    var a = sel; clearSel(); trySwap(a, { r: r, c: c });
+  }
+  box.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest('.blk');
+    down = (b && !busy && !K.over) ? { r: +b.dataset.r, c: +b.dataset.c, x: e.clientX, y: e.clientY } : null;
+  });
+  box.addEventListener('pointerup', function (e) {
+    var d = down; down = null;
+    if (!d || busy || K.over) return;
+    var dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 16) return tap(d.r, d.c);        // a tap
+    var vert = Math.abs(dy) > Math.abs(dx), nr = d.r + (vert ? Math.sign(dy) : 0), nc = d.c + (vert ? 0 : Math.sign(dx));
+    clearSel();
+    if (nr >= 0 && nr < R && nc >= 0 && nc < C) trySwap({ r: d.r, c: d.c }, { r: nr, c: nc });   // a swipe
+  });
+  box.addEventListener('pointercancel', function () { down = null; });
+
+  async function trySwap(a, b) {
+    busy = true; swapData(a, b); swapDom(a, b); await delay(260);
+    var m = matches();
+    if (!m.length) { swapData(a, b); swapDom(a, b); await delay(260); busy = false; return; }   // no match: swap back, free
+    K.ammo--; hud(); await resolve(m);
+  }
+  async function resolve(m) {
+    var chain = 1;
+    while (m.length) {
+      var pts = m.length * 10 * Math.min(chain, 5);
+      score += pts; hud(); say('+' + pts + (chain > 1 ? ' ×' + Math.min(chain, 5) : ''));
+      m.forEach(function (k) { var p = k.split(','); els[p[0]][p[1]].classList.add('gone'); grid[p[0]][p[1]] = null; });
+      await delay(250);
+      m.forEach(function (k) { var p = k.split(','); els[p[0]][p[1]].remove(); els[p[0]][p[1]] = null; });
+      for (var c = 0; c < C; c++) {                                             // gravity + refill
+        var w = R - 1, r;
+        for (r = R - 1; r >= 0; r--) if (grid[r][c]) {
+          if (w !== r) { grid[w][c] = grid[r][c]; els[w][c] = els[r][c]; grid[r][c] = null; els[r][c] = null; place(els[w][c], w, c); }
+          w--;
+        }
+        for (r = w; r >= 0; r--) make(r, c, rndColor(), true);
+      }
+      await delay(320); m = matches(); chain++;
+    }
+    if (score >= TARGET) { K.end(true); return; }
+    if (!hasSwap()) await shuffle();
+    if (K.ammo <= 0) K.ask(function () { busy = false; }); else busy = false;
+  }
+
+  function start() {
+    box.innerHTML = ''; score = 0; busy = false; sel = null; down = null;
+    grid = Array.from({ length: R }, function () { return Array(C).fill(null); });
+    els = Array.from({ length: R }, function () { return Array(C).fill(null); });
+    for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) make(r, c, safeColor(r, c), false);
+    if (!hasSwap()) shuffle();
+    $('tg').textContent = TARGET; hud();
+  }
+  start();
+})();
+</script>
+</body>
+</html>
