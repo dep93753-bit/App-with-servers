@@ -406,7 +406,7 @@ $('#classView').addEventListener('click', e => {
   ({ post: focusPost, share: showCode, assign: addAssignment, code: showCode })[a.dataset.act]();
 });
 $('#classView').addEventListener('keydown', e => { if (e.target.id === 'postBox' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addPost(e.target.value); } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAuthPopup(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
 
 const sidebar = $('#sidebar');
 $('#content nav .bx-menu').onclick = () => sidebar.classList.toggle('hide');
@@ -836,33 +836,258 @@ function pickAndAssignQuiz() {
     addAssignmentForClass(c, qs); closeModal(); toast('Assigned "' + qs.title + '"'); render();
   });
 }
+
+/* ===================== Kahoot-style question editor ===================== */
+const OPT_SHAPES = ['shape-a', 'shape-b', 'shape-c', 'shape-d'];
+const OPT_LETTERS = ['A', 'B', 'C', 'D'];
+const OPT_ICONS = ['bxs-square', 'bxs-circle', 'bxs-triangle', 'bxs-diamond'];
+let qeState = null;   // { qs, mode: 'edit'|'preview' }
+
+function ensureQEShell() {
+  let scrim = document.getElementById('qeScrim');
+  if (scrim) return scrim;
+  scrim = document.createElement('div');
+  scrim.id = 'qeScrim';
+  scrim.className = 'qe-scrim';
+  scrim.innerHTML = `<div class="qe-shell">
+    <div class="qe-head">
+      <div class="qe-titlewrap">
+        <div class="qe-ic"><i class='bx bx-list-check'></i></div>
+        <input type="text" id="qeTitle" maxlength="80" placeholder="Set title">
+      </div>
+      <button class="qe-close" id="qeClose" title="Close"><i class='bx bx-x'></i></button>
+    </div>
+    <div class="qe-meta">
+      <div class="qe-tabswitch">
+        <button id="qeTabEdit" class="on"><i class='bx bx-edit'></i> Edit</button>
+        <button id="qeTabPreview"><i class='bx bxs-show'></i> Preview</button>
+      </div>
+      <span id="qeCount">0 questions</span>
+      <span id="qeGradeInfo" style="margin-left:auto"></span>
+    </div>
+    <div class="qe-body" id="qeBodyEdit"></div>
+    <div class="qe-body" id="qeBodyPreview" hidden></div>
+    <div class="qe-foot">
+      <div class="qe-footleft"><span id="qeDirtyHint"></span></div>
+      <div class="qe-footright">
+        <button class="btn ghost" id="qeCancelBtn">Cancel</button>
+        <button class="btn" id="qeSaveBtn"><i class='bx bx-check'></i> Save</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(scrim);
+  scrim.addEventListener('click', e => { if (e.target.id === 'qeScrim') closeQuestionEditor(); });
+  document.getElementById('qeClose').onclick = closeQuestionEditor;
+  document.getElementById('qeCancelBtn').onclick = closeQuestionEditor;
+  document.getElementById('qeSaveBtn').onclick = saveQuestionEditor;
+  document.getElementById('qeTabEdit').onclick = () => setQEMode('edit');
+  document.getElementById('qeTabPreview').onclick = () => setQEMode('preview');
+  document.getElementById('qeTitle').addEventListener('input', e => { if (qeState) { qeState.qs.title = e.target.value; markQEDirty(); } });
+  return scrim;
+}
+
+function markQEDirty() {
+  const el = document.getElementById('qeDirtyHint'); if (!el) return;
+  el.textContent = 'Unsaved changes';
+}
+function clearQEDirty() {
+  const el = document.getElementById('qeDirtyHint'); if (!el) return;
+  el.textContent = '';
+}
+
 function editQuiz(qsId) {
   const qs = qsets.find(x => x.id === qsId); if (!qs) return;
-  openModal(`<h3>Edit "${esc(qs.title)}"</h3><p class="sub">Change any question. Radio = correct answer.</p>
-    <div id="qlist" style="max-height:56vh;overflow-y:auto;margin-bottom:14px"></div>
-    <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" data-save>Save</button></div>`);
-  const qlist = $('#qlist');
-  qlist.innerHTML = qs.questions.map((q, qi) => `<div class="q-edit" data-q="${qi}">
-    <label>Question ${qi + 1}</label><textarea data-field="question" rows="2">${esc(q.question)}</textarea>
-    <label style="margin-top:8px">Options · pick the correct one</label>
-    ${q.options.map((o, oi) => `<div class="optrow"><input type="radio" name="correct-${qi}" value="${oi}" ${q.correct === oi ? 'checked' : ''}><input type="text" data-opt="${oi}" value="${esc(o)}"></div>`).join('')}
-    <div class="row" style="margin-top:10px"><div><label>Time limit (s)</label><input type="text" data-field="timeLimit" value="${q.timeLimit || 20}"></div><div><label>Explanation</label><input type="text" data-field="explanation" value="${esc(q.explanation || '')}"></div></div>
-  </div>`).join('');
-  $('#modal [data-x]').onclick = closeModal;
-  $('#modal [data-save]').onclick = () => {
-    qlist.querySelectorAll('.q-edit').forEach(el => {
-      const qi = parseInt(el.dataset.q, 10);
-      const q = qs.questions[qi];
-      q.question = el.querySelector('[data-field="question"]').value.trim() || q.question;
-      q.options = [0,1,2,3].map(i => el.querySelector('[data-opt="' + i + '"]').value.trim() || q.options[i]);
-      const picked = el.querySelector('input[type=radio]:checked');
-      q.correct = picked ? parseInt(picked.value, 10) : q.correct;
-      const tl = parseInt(el.querySelector('[data-field="timeLimit"]').value, 10);
-      q.timeLimit = Number.isFinite(tl) ? tl : (q.timeLimit || 20);
-      q.explanation = el.querySelector('[data-field="explanation"]').value.trim();
+  // Deep clone so edits don't commit until Save
+  qeState = { qs: JSON.parse(JSON.stringify(qs)), originalId: qs.id, mode: 'edit' };
+  ensureQEShell();
+  document.getElementById('qeTitle').value = qeState.qs.title || '';
+  const gi = document.getElementById('qeGradeInfo');
+  gi.textContent = [qeState.qs.grade, qeState.qs.difficulty].filter(Boolean).join(' · ');
+  clearQEDirty();
+  setQEMode('edit');
+  document.getElementById('qeScrim').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function setQEMode(mode) {
+  if (!qeState) return;
+  qeState.mode = mode;
+  document.getElementById('qeTabEdit').classList.toggle('on', mode === 'edit');
+  document.getElementById('qeTabPreview').classList.toggle('on', mode === 'preview');
+  document.getElementById('qeBodyEdit').hidden = mode !== 'edit';
+  document.getElementById('qeBodyPreview').hidden = mode !== 'preview';
+  if (mode === 'edit') renderQEEdit(); else renderQEPreview();
+}
+
+function updateQECount() {
+  const el = document.getElementById('qeCount'); if (!el || !qeState) return;
+  const n = qeState.qs.questions.length;
+  el.textContent = n + ' question' + (n === 1 ? '' : 's');
+}
+
+function renderQEEdit() {
+  if (!qeState) return;
+  const body = document.getElementById('qeBodyEdit');
+  const qs = qeState.qs;
+  updateQECount();
+  if (!qs.questions.length) {
+    body.innerHTML = `<div class="qe-list"><button class="qe-addq" id="qeAddFirst"><i class='bx bx-plus'></i> Add the first question</button></div>`;
+    document.getElementById('qeAddFirst').onclick = () => { qs.questions.push(blankQuestion()); renderQEEdit(); markQEDirty(); };
+    return;
+  }
+  body.innerHTML = `<div class="qe-list">${qs.questions.map((q, qi) => qeQCardHtml(q, qi)).join('')}</div>
+    <button class="qe-addq" id="qeAddQ"><i class='bx bx-plus'></i> Add question</button>`;
+  wireQEEditCards();
+  document.getElementById('qeAddQ').onclick = () => { qs.questions.push(blankQuestion()); renderQEEdit(); markQEDirty(); };
+}
+
+function blankQuestion() {
+  return { question: '', options: ['', '', '', ''], correct: 0, timeLimit: 20, explanation: '' };
+}
+
+function qeQCardHtml(q, qi) {
+  return `<div class="qe-qcard" data-q="${qi}">
+    <div class="qe-qhd">
+      <div class="qe-qnum">${qi + 1}</div>
+      <div class="qe-qtext">${esc(q.question || '(empty question)')}</div>
+      <div class="qe-qtools">
+        <button class="up" data-up="${qi}" title="Move up"><i class='bx bx-chevron-up'></i></button>
+        <button class="down" data-down="${qi}" title="Move down"><i class='bx bx-chevron-down'></i></button>
+        <button class="del" data-delq="${qi}" title="Delete question"><i class='bx bx-trash'></i></button>
+      </div>
+    </div>
+    <textarea class="qe-qinput" data-field="question" rows="2" placeholder="Type the question...">${esc(q.question)}</textarea>
+    <div class="qe-opts">
+      ${q.options.map((o, oi) => `<div class="qe-opt ${OPT_SHAPES[oi]} ${q.correct === oi ? 'is-correct' : ''}" data-opt="${oi}">
+        <div class="qe-mark"><i class='bx ${q.correct === oi ? 'bxs-check-circle' : 'bx-circle'}'></i></div>
+        <input type="text" data-optval="${oi}" value="${esc(o)}" placeholder="Option ${OPT_LETTERS[oi]}">
+      </div>`).join('')}
+    </div>
+    <div class="qe-qextra">
+      <div><label>Time limit (seconds)</label><input type="text" data-field="timeLimit" value="${q.timeLimit || 20}"></div>
+      <div style="flex:2"><label>Explanation (shown after answer)</label><textarea data-field="explanation" rows="2" placeholder="Why is the answer correct?">${esc(q.explanation || '')}</textarea></div>
+    </div>
+  </div>`;
+}
+
+function wireQEEditCards() {
+  const body = document.getElementById('qeBodyEdit'); if (!body || !qeState) return;
+  const qs = qeState.qs;
+
+  body.querySelectorAll('.qe-qcard').forEach(card => {
+    const qi = parseInt(card.dataset.q, 10);
+    const q = qs.questions[qi];
+
+    const txt = card.querySelector('[data-field="question"]');
+    txt.addEventListener('input', () => { q.question = txt.value; markQEDirty(); card.querySelector('.qe-qtext').textContent = q.question || '(empty question)'; });
+
+    card.querySelectorAll('.qe-opt').forEach(opt => {
+      const oi = parseInt(opt.dataset.opt, 10);
+      const inp = opt.querySelector('[data-optval]');
+      inp.addEventListener('input', () => { q.options[oi] = inp.value; markQEDirty(); });
+      opt.addEventListener('click', e => {
+        if (e.target === inp) return; // don't toggle when typing in the field
+        q.correct = oi; markQEDirty();
+        card.querySelectorAll('.qe-opt').forEach(o => {
+          const i = parseInt(o.dataset.opt, 10);
+          o.classList.toggle('is-correct', i === oi);
+          o.querySelector('.qe-mark').innerHTML = `<i class='bx ${i === oi ? 'bxs-check-circle' : 'bx-circle'}'></i>`;
+        });
+      });
     });
-    saveQSets(); closeModal(); renderQuestionSets(); toast('Saved');
-  };
+
+    const tl = card.querySelector('[data-field="timeLimit"]');
+    tl.addEventListener('input', () => { const n = parseInt(tl.value, 10); q.timeLimit = Number.isFinite(n) ? n : 20; markQEDirty(); });
+    const ex = card.querySelector('[data-field="explanation"]');
+    ex.addEventListener('input', () => { q.explanation = ex.value; markQEDirty(); });
+  });
+
+  body.querySelectorAll('[data-up]').forEach(b => b.onclick = () => {
+    const qi = parseInt(b.dataset.up, 10); if (qi <= 0) return;
+    const arr = qeState.qs.questions;
+    [arr[qi - 1], arr[qi]] = [arr[qi], arr[qi - 1]];
+    renderQEEdit(); markQEDirty();
+  });
+  body.querySelectorAll('[data-down]').forEach(b => b.onclick = () => {
+    const qi = parseInt(b.dataset.down, 10); if (qi >= qeState.qs.questions.length - 1) return;
+    const arr = qeState.qs.questions;
+    [arr[qi + 1], arr[qi]] = [arr[qi], arr[qi + 1]];
+    renderQEEdit(); markQEDirty();
+  });
+  body.querySelectorAll('[data-delq]').forEach(b => b.onclick = () => {
+    const qi = parseInt(b.dataset.delq, 10);
+    if (!confirm('Delete question ' + (qi + 1) + '?')) return;
+    qeState.qs.questions.splice(qi, 1);
+    renderQEEdit(); markQEDirty();
+  });
+}
+
+function renderQEPreview() {
+  if (!qeState) return;
+  const body = document.getElementById('qeBodyPreview');
+  const qs = qeState.qs;
+  updateQECount();
+  if (!qs.questions.length) {
+    body.innerHTML = `<div class="qb-empty"><i class='bx bxs-show'></i><h3>Nothing to preview</h3><p style="margin:8px 0 16px">Add a question in the Edit tab first.</p></div>`;
+    return;
+  }
+  body.innerHTML = `<div class="qe-preview">${qs.questions.map((q, qi) => qePreviewCardHtml(q, qi)).join('')}</div>`;
+}
+
+function qePreviewCardHtml(q, qi) {
+  const ansClasses = ['a', 'b', 'c', 'd'];
+  const letters = ['A', 'B', 'C', 'D'];
+  const hasExpl = q.explanation && q.explanation.trim();
+  return `<div class="qe-pvcard">
+    <div class="qe-pvtop">
+      <div class="qe-pvqnum">Question ${qi + 1} of ${qeState.qs.questions.length}</div>
+      <div class="qe-pvqtext">${esc(q.question || '(empty question)')}</div>
+    </div>
+    <div class="qe-pvanswers">
+      ${q.options.map((o, oi) => `<div class="qe-pvans ${ansClasses[oi]} ${q.correct === oi ? 'correct' : ''}">
+        <span class="qe-pvshape"><i class='bx ${OPT_ICONS[oi]}'></i></span>
+        <span>${esc(o || '(empty)')}</span>
+      </div>`).join('')}
+    </div>
+    <div class="qe-pvbar">
+      <span class="qe-pvtimer"><i class='bx bx-stopwatch'></i> ${q.timeLimit || 20}s</span>
+      <span class="qe-pvcorrect-tag"><i class='bx bxs-check-circle'></i> Correct: ${esc(q.options[q.correct] || '(empty)')}</span>
+    </div>
+    ${hasExpl ? `<div class="qe-pvexplain"><b>Explanation:</b> ${esc(q.explanation)}</div>` : ''}
+  </div>`;
+}
+
+function saveQuestionEditor() {
+  if (!qeState) return;
+  const qs = qeState.qs;
+  if (!qs.title || !qs.title.trim()) return toast('Give the set a title');
+  // Validate questions
+  for (let i = 0; i < qs.questions.length; i++) {
+    const q = qs.questions[i];
+    if (!q.question || !q.question.trim()) return toast('Question ' + (i + 1) + ' is empty');
+    if (q.options.some(o => !o || !o.trim())) return toast('Question ' + (i + 1) + ' has an empty option');
+  }
+  // Commit to the real qsets array
+  const real = qsets.find(x => x.id === qeState.originalId);
+  if (real) {
+    real.title = qs.title.trim();
+    real.questions = qs.questions;
+    real.grade = qs.grade; real.difficulty = qs.difficulty;
+  } else {
+    qs.id = qeState.originalId || ('qs_' + Date.now().toString(36));
+    qsets.unshift(qs);
+  }
+  saveQSets();
+  closeQuestionEditor();
+  renderQuestionSets();
+  toast('Saved "' + qs.title + '"');
+}
+
+function closeQuestionEditor() {
+  const scrim = document.getElementById('qeScrim'); if (!scrim) return;
+  scrim.classList.remove('show');
+  document.body.style.overflow = '';
+  qeState = null;
 }
 
 /* ===================== Game launcher ===================== */
