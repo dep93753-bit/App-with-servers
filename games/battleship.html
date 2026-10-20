@@ -1,144 +1,1815 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Battleship</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#031018">
+<title>Battleship - Top-Down Naval Command</title>
 <style>
-:root{--bg:#061824;--bg2:#0a3a4d;--sea:#0d4f66;--sea-light:#14708f;--cell:#0e5a72;--cell-hover:#1a7a96;--text:#e8f4f8;--accent:#f0c14b;--hit:#d64545;--miss:#7eb8c9;--ship-placed:#5c8a9e;--sunk:#8b2e2e;--fog:#0a2f3d;--valid:rgba(80,200,140,.45);--invalid:rgba(214,69,69,.45)}
-*{box-sizing:border-box}body{margin:0;font-family:"Outfit",sans-serif;background:radial-gradient(ellipse at 20% 10%,rgba(20,112,143,.35),transparent 50%),linear-gradient(165deg,#031018,var(--bg) 40%,var(--bg2));min-height:100vh;color:var(--text)}
-.wrapper{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
-.hidden{display:none!important}
-.level-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;text-align:center}
-.level-header h1{margin:0 0 8px;font-size:clamp(1.4rem,4vw,2rem)}
-.level-screen>p{margin:0 0 24px;opacity:.9}
-.level-buttons{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
-.level-btn{padding:16px 20px;border:2px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.08);color:inherit;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
-.level-name{font-weight:700}.level-desc{font-size:.85rem;opacity:.85}
-.game-screen{width:100%;max-width:920px;flex:1;display:flex;flex-direction:column}
-.header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
-.header h1{margin:0;font-size:clamp(1.4rem,4vw,2rem)}
-.level-badge{padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);font-size:.8rem;font-weight:600}
-.header-actions{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;align-items:center}
-.hud{font-weight:600;font-size:.9rem}
-.btn{padding:10px 14px;border:none;border-radius:8px;background:rgba(255,255,255,.25);color:inherit;font-family:inherit;font-weight:600;cursor:pointer}
-.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.4)}
-.placement-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px;padding:10px 12px;background:rgba(0,0,0,.25);border-radius:10px}
-.placement-bar.hidden-bar{display:none}
-.ship-tray{display:flex;flex-wrap:wrap;gap:8px;flex:1}
-.ship-chip{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:2px solid rgba(255,255,255,.25);border-radius:8px;background:rgba(255,255,255,.06);color:inherit;font-family:inherit;cursor:pointer}
-.ship-chip.selected{border-color:var(--accent)}
-.ship-chip.placed{opacity:.45;cursor:default}
-.ship-chip-name{font-weight:700;font-size:.8rem}
-.ship-chip-cells{display:flex;gap:2px}
-.ship-chip-cell{width:10px;height:10px;border-radius:2px;background:var(--ship-placed)}
-.placement-controls{display:flex;gap:8px}
-.boards{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
-.board-panel{flex:1 1 300px;max-width:420px}
-.board-title{margin:0 0 8px;font-size:1rem;text-align:center;opacity:.95}
-.board{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;aspect-ratio:1;width:100%;background:var(--sea);padding:4px;border-radius:8px;user-select:none}
-.cell{aspect-ratio:1;border-radius:3px;background:var(--cell);border:none;padding:0;cursor:default;position:relative}
-.cell.fog{background:var(--fog)}.cell.ship{background:var(--ship-placed)}
-.cell.preview-valid{background:var(--valid)}.cell.preview-invalid{background:var(--invalid)}
-.cell.miss{background:var(--sea-light)}.cell.miss::after{content:"";position:absolute;inset:28%;border-radius:50%;background:var(--miss)}
-.cell.hit{background:var(--hit)}.cell.hit::after{content:"";position:absolute;inset:22%;background:var(--accent);clip-path:polygon(10% 0,50% 35%,90% 0,100% 10%,65% 50%,100% 90%,90% 100%,50% 65%,10% 100%,0 90%,35% 50%,0 10%)}
-.cell.sunk{background:var(--sunk)}.cell.sunk::after{content:"";position:absolute;inset:18%;background:rgba(0,0,0,.45);border:2px solid var(--accent);border-radius:2px}
-.board.combat-target .cell:not(.miss):not(.hit):not(.sunk){cursor:pointer}
-.board.combat-target .cell:not(.miss):not(.hit):not(.sunk):hover{background:var(--cell-hover)}
-.board.placing .cell{cursor:pointer}
-.result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
-.result-box{background:linear-gradient(160deg,#0a3040,#0d4a5c);border-radius:14px;padding:24px;max-width:420px;width:100%;text-align:center}
-.result-actions{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#031018;color:#e8f6fb;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+button:disabled{cursor:not-allowed}
+button:focus-visible{outline:2px solid #f0c14b;outline-offset:2px}
+ul{list-style:none}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-@media(max-width:720px){.boards{flex-direction:column}.board-panel{max-width:none}.placement-bar{flex-direction:column;align-items:stretch}}
-</style></head><body>
-<div class="wrapper">
-  <div id="levelScreen" class="level-screen">
-    <div class="level-header"><h1>Battleship</h1></div>
-    <p>Start with <b>5 ammo</b>. Every shot costs 1. Correct answers reload.</p>
-    <div class="level-buttons">
-      <button type="button" data-level="easy" class="level-btn"><span class="level-name">Easy</span><span class="level-desc">Random fire</span></button>
-      <button type="button" data-level="medium" class="level-btn"><span class="level-name">Medium</span><span class="level-desc">Hunt after hit</span></button>
-      <button type="button" data-level="hard" class="level-btn"><span class="level-name">Hard</span><span class="level-desc">Hunt + adjacency</span></button>
+/* ---------- menu ---------- */
+#menu{position:relative;min-height:100dvh;overflow:hidden}
+#backdrop{position:fixed;inset:0;width:100%;height:100%}
+.menu-main{position:relative;z-index:1;margin:0 auto;display:flex;min-height:100dvh;max-width:32rem;flex-direction:column;align-items:center;justify-content:center;gap:2rem;padding:2.5rem 1.25rem;text-align:center}
+.logo{width:56px;height:56px;margin:0 auto 1rem;display:grid;place-items:center;border-radius:1rem;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);backdrop-filter:blur(8px);color:#f0c14b}
+.logo .i{width:28px;height:28px}
+.menu-main h1{font-size:clamp(3rem,10vw,3.75rem);font-weight:800;letter-spacing:-.03em;text-wrap:balance}
+.menu-main .sub{margin-top:.75rem;font-size:1.1rem;color:rgba(255,255,255,.75);text-wrap:pretty}
+.levels{display:grid;width:100%;gap:.75rem}
+.level{display:flex;min-height:64px;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:.875rem 1.25rem;border-radius:1rem;border:1px solid;backdrop-filter:blur(8px);transition:transform .15s,border-color .15s}
+.level:hover{transform:translateY(-2px)}
+.level b{font-size:1.1rem}
+.level span{font-size:.875rem;color:rgba(255,255,255,.7)}
+.level.easy{background:linear-gradient(#34d3991f,#34d3990d);border-color:rgba(110,231,183,.4)}.level.easy:hover{border-color:#6ee7b7}
+.level.medium{background:linear-gradient(#fcd34d1f,#fcd34d0d);border-color:rgba(253,230,138,.4)}.level.medium:hover{border-color:#fde68a}
+.level.hard{background:linear-gradient(#f871711f,#f871710d);border-color:rgba(252,165,165,.4)}.level.hard:hover{border-color:#fca5a5}
+.tips{display:grid;width:100%;gap:.5rem;padding:1rem;text-align:left;font-size:.875rem;color:rgba(255,255,255,.8);border-radius:1rem;border:1px solid rgba(255,255,255,.1);background:rgba(4,19,29,.7);backdrop-filter:blur(8px)}
+.tips li{display:flex;gap:.75rem}
+.tips .i{margin-top:2px;color:#f0c14b}
+
+/* ---------- game ---------- */
+#game{position:relative;min-height:100dvh;padding-bottom:2.5rem;background:radial-gradient(ellipse at 20% 0%,rgba(20,112,143,.35),transparent 55%),linear-gradient(170deg,#031018,#05202f 45%,#08364a)}
+.wrap{max-width:72rem;margin:0 auto;padding:0 1rem}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;padding-top:1rem}
+.top h1{font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+.badge{padding:.25rem .75rem;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.ammo{display:flex;align-items:center;gap:.5rem;padding:.25rem .875rem .25rem .75rem;border-radius:999px;border:1px solid rgba(240,193,75,.3);background:rgba(240,193,75,.1);color:#f0c14b}
+.pips{display:flex;align-items:flex-end;gap:4px}
+.pip{width:8px;height:16px;border-radius:999px 999px 2px 2px;background:rgba(255,255,255,.15);transition:background .2s}
+.pip.on{background:#f0c14b;box-shadow:0 0 8px rgba(240,193,75,.7)}
+.ammo b{font-size:.875rem;font-variant-numeric:tabular-nums}
+.spacer{margin-left:auto}
+.top .right{display:flex;align-items:center;gap:.5rem;margin-left:auto}
+.icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);transition:background .15s}
+.icon-btn:hover{background:rgba(255,255,255,.2)}
+.icon-btn .i{width:20px;height:20px}
+.btn{display:inline-flex;min-height:44px;align-items:center;gap:.5rem;padding:0 .875rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);font-size:.875rem;font-weight:600;transition:background .15s}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.solid{background:rgba(255,255,255,.15);border-color:transparent}.btn.solid:hover{background:rgba(255,255,255,.25)}
+.btn:disabled{opacity:.4}
+.btn .kbd{padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.3);font-size:10px;font-weight:700;color:rgba(255,255,255,.7)}
+.gold{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.5rem;padding:0 1.5rem;border-radius:.75rem;background:#f0c14b;color:#1a1405;font-size:.875rem;font-weight:800;box-shadow:0 6px 24px -6px rgba(240,193,75,.7);transition:filter .15s}
+.gold:hover:not(:disabled){filter:brightness(1.1)}
+.gold:disabled{background:rgba(255,255,255,.15);color:rgba(255,255,255,.4);box-shadow:none}
+.hudrow{display:flex;align-items:center;gap:.75rem;margin-top:.75rem}
+#hud{flex:1;min-height:44px;padding:.625rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);font-size:.875rem;font-weight:600;line-height:1.35;color:rgba(255,255,255,.85)}
+#hud.mine{border-color:rgba(240,193,75,.5);background:rgba(240,193,75,.1);color:#ffe6a3}
+#hud.theirs{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.1);color:#fee2e2}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:.75rem;padding:4px;border-radius:.75rem;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.25)}
+.tabs button{min-height:40px;border-radius:.5rem;font-size:.875rem;font-weight:700;color:rgba(255,255,255,.6);transition:background .15s}
+.tabs button[aria-selected=true]{background:rgba(255,255,255,.2);color:#fff}
+.boards{display:grid;gap:1.5rem;margin-top:1rem}
+.panel{display:flex;width:100%;flex-direction:column;gap:.625rem;min-width:0}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;padding:0 4px}
+.panel-head h2{display:flex;align-items:center;gap:.5rem;font-size:1rem;font-weight:700;letter-spacing:.02em}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.25)}
+.dot.on{background:#f0c14b;box-shadow:0 0 10px #f0c14b}
+.cap{font-size:.75rem;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.board-wrap{position:relative;aspect-ratio:1;width:100%;overflow:hidden;border-radius:1rem;background:#062235;box-shadow:0 0 0 1px rgba(160,230,255,.18),0 20px 60px -20px rgba(0,0,0,.8)}
+.board-wrap canvas{display:block;width:100%;height:100%;user-select:none;-webkit-user-select:none}
+.banner-layer{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.banner{font-size:clamp(2.25rem,6vw,3rem);font-weight:900;text-transform:uppercase;letter-spacing:.12em;animation:bs-banner 1.4s ease-out both}
+.banner.hit{color:#ffb347;text-shadow:0 2px 12px rgba(255,120,30,.8)}
+.banner.miss{color:#d7f3ff;text-shadow:0 2px 12px rgba(120,200,255,.7)}
+.banner.sunk{color:#ff6b5e;text-shadow:0 2px 16px rgba(255,60,40,.9)}
+.fleetlist{display:flex;flex-wrap:wrap;align-items:center;gap:6px 1rem;padding:0 4px}
+.fleetlist li{display:flex;align-items:center;gap:6px}
+.fleetlist span{font-size:11px;font-weight:600;color:rgba(255,255,255,.6)}
+.fleetlist li.sunk span{color:#fca5a5;text-decoration:line-through}
+.fleetlist li canvas{opacity:.9}.fleetlist li.sunk canvas{opacity:.4}
+.placebar{display:flex;flex-direction:column;gap:.75rem;padding:.75rem;border-radius:1rem;border:1px solid rgba(255,255,255,.1);background:rgba(4,19,29,.8);backdrop-filter:blur(8px)}
+.tray{display:flex;flex-wrap:wrap;gap:.5rem}
+.ship-btn{display:flex;min-height:56px;align-items:center;gap:.625rem;padding:.5rem .75rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);text-align:left;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;transition:border-color .15s,background .15s}
+.ship-btn:hover:not(:disabled){border-color:rgba(255,255,255,.4)}
+.ship-btn.sel{border-color:#f0c14b;background:rgba(240,193,75,.15)}
+.ship-btn:disabled{cursor:not-allowed;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1);color:rgba(255,255,255,.6)}
+.ship-btn:disabled canvas{opacity:.5}
+.ship-btn .txt{display:flex;flex-direction:column;line-height:1.2}
+.ship-btn .txt b{font-size:.875rem}
+.ship-btn .txt small{font-size:11px;color:rgba(255,255,255,.55)}
+.ship-btn .ok{color:#6ee7b7;display:none}.ship-btn:disabled .ok{display:block}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.actions .btn{background:rgba(255,255,255,.1)}.actions .btn:hover:not(:disabled){background:rgba(255,255,255,.2)}
+.actions .btn.ghostb{background:transparent}.actions .btn.ghostb:hover:not(:disabled){background:rgba(255,255,255,.1)}
+.actions .gold{margin-left:auto}
+.help{font-size:.75rem;line-height:1.6;color:rgba(255,255,255,.55)}
+#game[data-phase=placement] .tabs{display:none}
+#game[data-phase=placement] .panel.enemy{display:none}
+#game:not([data-phase=placement]) .placebar{display:none}
+@media(max-width:1023px){
+ #game:not([data-phase=placement])[data-view=enemy] .panel.own{display:none}
+ #game:not([data-phase=placement])[data-view=own] .panel.enemy{display:none}
+}
+@media(min-width:1024px){
+ .tabs{display:none}
+ .boards{grid-template-columns:1fr 1fr;gap:2rem}
+ #game[data-phase=placement] .boards{grid-template-columns:minmax(0,620px) minmax(0,1fr);align-items:start}
+ .placebar{padding:1rem}
+}
+@media(max-width:639px){.hide-sm{display:none}}
+
+/* ---------- modals ---------- */
+.overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,11,18,.8);backdrop-filter:blur(4px)}
+.modal{width:100%;border-radius:1.5rem;border:1px solid rgba(255,255,255,.1);background:linear-gradient(#0b3347,#071e2c);box-shadow:0 25px 50px -12px rgba(0,0,0,.6);animation:bs-pop .28s ease-out both}
+.modal.quiz{max-width:28rem;padding:1.5rem}
+.modal.result{max-width:24rem;padding:1.75rem;text-align:center}
+.eyebrow{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.2em;color:#f0c14b}
+.modal h2{margin-top:.5rem;font-size:1.25rem;font-weight:700;line-height:1.35;text-wrap:balance}
+.modal .meta{margin-top:.25rem;font-size:.875rem;color:rgba(255,255,255,.6)}
+.opts{display:grid;gap:.625rem;margin-top:1.25rem}
+.opt{display:flex;min-height:48px;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);text-align:left;font-weight:600;transition:background .15s,border-color .15s}
+.opt:hover:not(:disabled){border-color:rgba(240,193,75,.7);background:rgba(255,255,255,.1)}
+.opt:disabled{opacity:.6}
+.opt.right{opacity:1;border-color:#34d399;background:rgba(52,211,153,.2);color:#d1fae5}
+.opt.wrong{opacity:1;border-color:#f87171;background:rgba(248,113,113,.2);color:#fee2e2}
+.qmsg{margin-top:1rem;min-height:1.5rem;font-size:.875rem;font-weight:600}
+.result .eyebrow{letter-spacing:.25em}
+.result .eyebrow.win{color:#6ee7b7}.result .eyebrow.lose{color:#fca5a5}
+.result h2{font-size:2.25rem;font-weight:900}
+.result p.m{margin-top:.5rem;color:rgba(255,255,255,.7)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:1.25rem}
+.stats div{padding:.75rem .5rem;border-radius:.75rem;background:rgba(255,255,255,.05)}
+.stats dt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.55)}
+.stats dd{margin-top:2px;font-size:1.25rem;font-weight:800;font-variant-numeric:tabular-nums}
+.rbtns{display:grid;gap:.625rem;margin-top:1.5rem}
+.rbtns .gold{min-height:48px;box-shadow:none;font-size:1rem}
+.rbtns .out{min-height:48px;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);font-weight:600;transition:background .15s}
+.rbtns .out:hover{background:rgba(255,255,255,.1)}
+
+@keyframes bs-pop{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes bs-banner{0%{opacity:0;transform:scale(.6)}18%{opacity:1;transform:scale(1.12)}30%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:translateY(-14px) scale(1)}}
+@media(prefers-reduced-motion:reduce){.modal,.banner{animation-duration:.01s}}
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <canvas id="backdrop" aria-hidden="true"></canvas>
+  <main class="menu-main">
+    <div>
+      <div class="logo" id="logoIcon"></div>
+      <h1>Battleship</h1>
+      <p class="sub">Command your fleet from above. Live seas, real shells, one admiral.</p>
+    </div>
+    <div class="levels" id="levels" role="group" aria-label="Choose difficulty"></div>
+    <ul class="tips" id="tips"></ul>
+  </main>
+</div>
+
+<div id="game" hidden data-phase="menu" data-view="own">
+  <header class="wrap top">
+    <h1>Battleship</h1>
+    <span class="badge" id="levelBadge"></span>
+    <div class="ammo" id="ammo" role="status"><span id="zapIcon"></span><span class="pips" id="pips" aria-hidden="true"></span><b id="ammoNum"></b></div>
+    <div class="right">
+      <button class="icon-btn" id="muteBtn" type="button"></button>
+      <button class="btn" id="levelBtn" type="button"><span id="homeIcon"></span><span class="hide-sm">Level</span><span class="sr-only">Change level</span></button>
+      <button class="btn solid" id="newBtn" type="button"><span id="resetIcon"></span><span class="hide-sm">New game</span><span class="sr-only">New game</span></button>
+    </div>
+  </header>
+  <div class="wrap hudrow">
+    <p id="hud" aria-live="polite"></p>
+    <button class="gold" id="reloadBtn" type="button" hidden style="box-shadow:none">Reload</button>
+  </div>
+  <div class="wrap">
+    <div class="tabs" id="tabs" role="tablist" aria-label="Board view">
+      <button type="button" role="tab" data-view="enemy">Enemy waters</button>
+      <button type="button" role="tab" data-view="own">Your fleet</button>
     </div>
   </div>
-  <div id="gameScreen" class="game-screen hidden">
-    <header class="header">
-      <h1>Battleship</h1>
-      <span class="level-badge" id="levelBadge">Easy</span>
-      <span class="ammo-badge" id="ammoBadge">Ammo: 5</span>
-      <div class="header-actions">
-        <span id="hud" class="hud">Place fleet</span>
-        <button type="button" id="changeLevelBtn" class="btn btn-ghost">Change Level</button>
-        <button type="button" id="newGameBtn" class="btn">New Game</button>
+  <main class="wrap boards" id="boards">
+    <div id="ownSlot" style="display:contents"></div>
+    <div class="placebar" id="placebar">
+      <ul class="tray" id="tray" aria-label="Fleet"></ul>
+      <div class="actions">
+        <button class="btn" id="rotateBtn" type="button"><span id="rotIcon"></span>Rotate<span class="kbd" aria-hidden="true">R</span></button>
+        <button class="btn" id="shuffleBtn" type="button"><span id="shufIcon"></span>Auto-place</button>
+        <button class="btn ghostb" id="clearBtn" type="button"><span id="trashIcon"></span>Clear</button>
+        <button class="gold" id="readyBtn" type="button">Open fire</button>
       </div>
-    </header>
-    <div id="placementBar" class="placement-bar"><div id="shipTray" class="ship-tray"></div><div class="placement-controls"><button type="button" id="rotateBtn" class="btn">Rotate</button><button type="button" id="readyBtn" class="btn" disabled>Ready</button></div></div>
-    <main class="boards"><section class="board-panel"><h2 class="board-title">Your Fleet</h2><div id="playerBoard" class="board"></div></section><section class="board-panel"><h2 class="board-title">Enemy Waters</h2><div id="enemyBoard" class="board"></div></section></main>
-    <div id="resultOverlay" class="result-overlay hidden"><div class="result-box"><h2 id="resultTitle"></h2><p id="resultMsg"></p><div class="result-actions"><button type="button" id="playAgainBtn" class="btn">Play Again</button><button type="button" id="changeLevelFromResultBtn" class="btn btn-ghost">Change Level</button></div></div></div>
-  </div>
+      <p class="help">Drag a ship onto the grid, or tap one and touch the water. Touch drags float the ship above your finger. Tap a deployed ship to rotate it, drag it to move it.</p>
+    </div>
+    <div id="enemySlot" style="display:contents"></div>
+  </main>
 </div>
-<script src="quiz-modal.js"></script>
-<script>
-(function(){
-"use strict";
-/* QUESTIONS and QUIZ_ID come from quiz-modal.js (sent by the app) */
-var SIZE=10;
-var FLEET=[{id:"carrier",name:"Carrier",length:5},{id:"battleship",name:"Battleship",length:4},{id:"cruiser",name:"Cruiser",length:3},{id:"submarine",name:"Submarine",length:3},{id:"destroyer",name:"Destroyer",length:2}];
-var LEVEL_LABELS={easy:"Easy",medium:"Medium",hard:"Hard"};
-var levelScreen=document.getElementById("levelScreen"),gameScreen=document.getElementById("gameScreen"),levelBadge=document.getElementById("levelBadge"),ammoBadge=document.getElementById("ammoBadge"),hud=document.getElementById("hud"),placementBar=document.getElementById("placementBar"),shipTray=document.getElementById("shipTray"),rotateBtn=document.getElementById("rotateBtn"),readyBtn=document.getElementById("readyBtn"),playerBoardEl=document.getElementById("playerBoard"),enemyBoardEl=document.getElementById("enemyBoard"),resultOverlay=document.getElementById("resultOverlay"),resultTitle=document.getElementById("resultTitle"),resultMsg=document.getElementById("resultMsg");
-var level="easy",phase="level",horizontal=true,selectedShipId=null,playerTurn=true,aiThinking=false,hoverCell=null;
-var playerGrid=createEmptyGrid(),enemyGrid=createEmptyGrid(),playerShips=[],enemyShips=[],playerShots=createShotMap(),enemyShots=createShotMap();
-var aiHuntQueue=[],aiHitCells=[],aiParity=0;
-var AMMO_START=5,AMMO_PER_CORRECT=3,AMMO_PER_WRONG=1;
-var ammo=AMMO_START,quizIdx=0,quizOpen=false,quizAnswers=[];
-function updateAmmoUI(){ammoBadge.textContent="Ammo: "+ammo;ammoBadge.classList.toggle("low",ammo<=1);}
+<div id="modalRoot"></div>
 
-var openQuiz = makeQuizModal({isOpen:function(){return quizOpen;},setOpen:function(v){quizOpen=v;},getAmmo:function(){return ammo;},setAmmo:function(v){ammo=v;},getIdx:function(){return quizIdx;},setIdx:function(v){quizIdx=v;},gainCorrect:AMMO_PER_CORRECT,gainWrong:AMMO_PER_WRONG,onUpdate:updateAmmoUI,onAnswer:function(qIdx,correct){quizAnswers.push({qIdx:qIdx,correct:correct});}});
-function createEmptyGrid(){return Array.from({length:SIZE},function(){return Array(SIZE).fill(null);});}
-function createShotMap(){return Array.from({length:SIZE},function(){return Array(SIZE).fill(null);});}
-function key(r,c){return r+","+c;}
-function inBounds(r,c){return r>=0&&r<SIZE&&c>=0&&c<SIZE;}
-function shuffle(a){var s=a.slice();for(var i=s.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=s[i];s[i]=s[j];s[j]=t;}return s;}
-function shipCells(r,c,length,isH){var cells=[];for(var i=0;i<length;i++)cells.push({r:isH?r:r+i,c:isH?c+i:c});return cells;}
-function canPlace(g,r,c,length,isH){var cells=shipCells(r,c,length,isH);for(var i=0;i<cells.length;i++){var cell=cells[i];if(!inBounds(cell.r,cell.c))return false;if(g[cell.r][cell.c]!==null)return false;}return true;}
-function placeShipOnGrid(g,ships,def,r,c,isH){if(!canPlace(g,r,c,def.length,isH))return false;var cells=shipCells(r,c,def.length,isH);var ship={id:def.id,name:def.name,length:def.length,cells:cells.map(function(x){return{r:x.r,c:x.c};}),hits:0,sunk:false};cells.forEach(function(x){g[x.r][x.c]=def.id;});ships.push(ship);return true;}
-function autoPlaceFleet(g,ships){for(var i=0;i<SIZE;i++)for(var j=0;j<SIZE;j++)g[i][j]=null;ships.length=0;for(var k=0;k<FLEET.length;k++){var def=FLEET[k];var placed=false;for(var a=0;a<400&&!placed;a++){var isH=Math.random()<0.5;var r=Math.floor(Math.random()*SIZE);var c=Math.floor(Math.random()*SIZE);placed=placeShipOnGrid(g,ships,def,r,c,isH);}if(!placed)return false;}return true;}
-function findShip(ships,id){return ships.find(function(s){return s.id===id;});}
-function allPlaced(){return playerShips.length===FLEET.length;}
-function fleetSunk(ships){return ships.length>0&&ships.every(function(s){return s.sunk;});}
-function applyShot(g,ships,shots,r,c){if(shots[r][c]!==null)return null;var shipId=g[r][c];if(!shipId){shots[r][c]="miss";return{result:"miss",ship:null};}shots[r][c]="hit";var ship=findShip(ships,shipId);ship.hits+=1;if(ship.hits>=ship.length){ship.sunk=true;ship.cells.forEach(function(x){shots[x.r][x.c]="sunk";});return{result:"sunk",ship:ship};}return{result:"hit",ship:ship};}
-function resetAiMemory(){aiHuntQueue=[];aiHitCells=[];aiParity=Math.random()<0.5?0:1;}
-function neighbors(r,c){return[{r:r-1,c:c},{r:r+1,c:c},{r:r,c:c-1},{r:r,c:c+1}].filter(function(n){return inBounds(n.r,n.c);});}
-function unshotCells(){var cells=[];for(var r=0;r<SIZE;r++)for(var c=0;c<SIZE;c++)if(enemyShots[r][c]===null)cells.push({r:r,c:c});return cells;}
-function enqueueHuntAround(r,c){var around=shuffle(neighbors(r,c));around.forEach(function(n){if(enemyShots[n.r][n.c]!==null)return;if(!aiHuntQueue.some(function(q){return q.r===n.r&&q.c===n.c;}))aiHuntQueue.push(n);});}
-function pruneHuntQueue(){aiHuntQueue=aiHuntQueue.filter(function(n){return enemyShots[n.r][n.c]===null;});}
-function alignedContinuation(){if(aiHitCells.length<2)return null;var rows=aiHitCells.map(function(h){return h.r;});var cols=aiHitCells.map(function(h){return h.c;});var sameRow=rows.every(function(r){return r===rows[0];});var sameCol=cols.every(function(c){return c===cols[0];});if(!sameRow&&!sameCol)return null;var cands=[];if(sameRow){var row=rows[0];var s=cols.slice().sort(function(a,b){return a-b;});var l=s[0]-1,r2=s[s.length-1]+1;if(inBounds(row,l)&&enemyShots[row][l]===null)cands.push({r:row,c:l});if(inBounds(row,r2)&&enemyShots[row][r2]===null)cands.push({r:row,c:r2});}else{var col=cols[0];var s2=rows.slice().sort(function(a,b){return a-b;});var up=s2[0]-1,dn=s2[s2.length-1]+1;if(inBounds(up,col)&&enemyShots[up][col]===null)cands.push({r:up,c:col});if(inBounds(dn,col)&&enemyShots[dn][col]===null)cands.push({r:dn,c:col});}if(!cands.length)return null;return cands[Math.floor(Math.random()*cands.length)];}
-function pickParityCell(){var open=unshotCells();var par=open.filter(function(cell){return (cell.r+cell.c)%2===aiParity;});var pool=par.length?par:open;if(!pool.length)return null;return pool[Math.floor(Math.random()*pool.length)];}
-function pickRandomUnshot(){var open=unshotCells();if(!open.length)return null;return open[Math.floor(Math.random()*open.length)];}
-function chooseAiShot(){if(level==="easy")return pickRandomUnshot();pruneHuntQueue();if(level==="hard"){var cont=alignedContinuation();if(cont)return cont;}while(aiHuntQueue.length){var nx=aiHuntQueue.shift();if(enemyShots[nx.r][nx.c]===null)return nx;}if(level==="hard")return pickParityCell();return pickRandomUnshot();}
-function onAiShotResult(r,c,outcome){if(level==="easy")return;if(outcome.result==="hit"){aiHitCells.push({r:r,c:c});enqueueHuntAround(r,c);}else if(outcome.result==="sunk"){aiHitCells=[];aiHuntQueue=[];}else if(outcome.result==="miss"){pruneHuntQueue();}}
-function buildBoards(){playerBoardEl.innerHTML="";enemyBoardEl.innerHTML="";for(var r=0;r<SIZE;r++)for(var c=0;c<SIZE;c++){var p=document.createElement("button");p.type="button";p.className="cell";p.dataset.r=r;p.dataset.c=c;playerBoardEl.appendChild(p);var e=document.createElement("button");e.type="button";e.className="cell fog";e.dataset.r=r;e.dataset.c=c;enemyBoardEl.appendChild(e);}}
-function renderShipTray(){shipTray.innerHTML="";FLEET.forEach(function(def){var placed=!!findShip(playerShips,def.id);var btn=document.createElement("button");btn.type="button";btn.className="ship-chip"+(placed?" placed":"")+(selectedShipId===def.id?" selected":"");btn.disabled=placed;var n=document.createElement("span");n.className="ship-chip-name";n.textContent=def.name+" ("+def.length+")";btn.appendChild(n);var cells=document.createElement("span");cells.className="ship-chip-cells";for(var i=0;i<def.length;i++){var dot=document.createElement("span");dot.className="ship-chip-cell";cells.appendChild(dot);}btn.appendChild(cells);if(!placed){btn.addEventListener("click",function(){selectedShipId=def.id;renderShipTray();renderBoards();setHud("Place "+def.name);});}shipTray.appendChild(btn);});readyBtn.disabled=!allPlaced();}
-function getPreviewCells(){if(phase!=="placement"||!selectedShipId||!hoverCell)return null;var def=FLEET.find(function(s){return s.id===selectedShipId;});if(!def)return null;var cells=shipCells(hoverCell.r,hoverCell.c,def.length,horizontal);var valid=canPlace(playerGrid,hoverCell.r,hoverCell.c,def.length,horizontal);return{cells:cells,valid:valid};}
-function renderBoards(){var pv=getPreviewCells();var ps=new Set();if(pv){pv.cells.forEach(function(cl){if(inBounds(cl.r,cl.c))ps.add(key(cl.r,cl.c));});}playerBoardEl.querySelectorAll(".cell").forEach(function(el){var r=Number(el.dataset.r),c=Number(el.dataset.c);el.className="cell";var shot=enemyShots[r][c];var occ=playerGrid[r][c];if(shot==="sunk")el.classList.add("sunk");else if(shot==="hit")el.classList.add("hit");else if(shot==="miss")el.classList.add("miss");else if(occ)el.classList.add("ship");if(pv&&ps.has(key(r,c)))el.classList.add(pv.valid?"preview-valid":"preview-invalid");});enemyBoardEl.querySelectorAll(".cell").forEach(function(el){var r=Number(el.dataset.r),c=Number(el.dataset.c);el.className="cell";var shot=playerShots[r][c];if(shot==="sunk")el.classList.add("sunk");else if(shot==="hit")el.classList.add("hit");else if(shot==="miss")el.classList.add("miss");else el.classList.add("fog");});playerBoardEl.classList.toggle("placing",phase==="placement");enemyBoardEl.classList.toggle("combat-target",phase==="combat"&&playerTurn&&!aiThinking&&!quizOpen);}
-function setHud(t){hud.textContent=t;}
-function showResult(won){phase="result";resultOverlay.classList.remove("hidden");resultTitle.textContent=won?"Victory!":"Defeat";resultMsg.textContent=won?"You sank the enemy fleet.":"Your fleet has been destroyed.";playerTurn=false;aiThinking=false;renderBoards();try{window.parent.postMessage({type:'gameEnd',game:'battleship',quizId:QUIZ_ID,won:won,score:won?100:0,answers:quizAnswers},'*');}catch(e){}}
-function startPlacement(){phase="placement";horizontal=true;selectedShipId=FLEET[0].id;playerTurn=true;aiThinking=false;hoverCell=null;quizAnswers=[];playerGrid=createEmptyGrid();enemyGrid=createEmptyGrid();playerShips=[];enemyShips=[];playerShots=createShotMap();enemyShots=createShotMap();resetAiMemory();resultOverlay.classList.add("hidden");placementBar.classList.remove("hidden-bar");levelBadge.textContent=LEVEL_LABELS[level];ammo=AMMO_START;updateAmmoUI();setHud("Place your fleet");renderShipTray();renderBoards();}
-function startCombat(){var ok=false;for(var i=0;i<50&&!ok;i++)ok=autoPlaceFleet(enemyGrid,enemyShips);if(!ok){setHud("Placement failed");return;}phase="combat";playerTurn=true;aiThinking=false;selectedShipId=null;hoverCell=null;placementBar.classList.add("hidden-bar");setHud("Your turn");renderBoards();}
-function endIfOver(){if(fleetSunk(enemyShips)){showResult(true);return true;}if(fleetSunk(playerShips)){showResult(false);return true;}return false;}
-function handlePlayerFire(r,c){if(phase!=="combat"||!playerTurn||aiThinking||quizOpen)return;if(playerShots[r][c]!==null)return;if(ammo<=0){openQuiz(function(){setHud("Your turn");renderBoards();});return;}ammo--;updateAmmoUI();var outcome=applyShot(enemyGrid,enemyShips,playerShots,r,c);if(!outcome)return;if(outcome.result==="miss")setHud("Miss");else if(outcome.result==="hit")setHud("Hit!");else setHud("Sank enemy "+outcome.ship.name+"!");renderBoards();if(endIfOver())return;playerTurn=false;scheduleAiTurn();}
-function scheduleAiTurn(){aiThinking=true;setHud("Enemy targeting…");renderBoards();setTimeout(function(){if(phase!=="combat")return;var t=chooseAiShot();if(!t){aiThinking=false;playerTurn=true;setHud("Your turn");renderBoards();return;}var o=applyShot(playerGrid,playerShips,enemyShots,t.r,t.c);onAiShotResult(t.r,t.c,o);if(o.result==="miss")setHud("Enemy missed");else if(o.result==="hit")setHud("Enemy hit your "+o.ship.name+"!");else setHud("Enemy sank your "+o.ship.name+"!");renderBoards();aiThinking=false;if(endIfOver())return;playerTurn=true;setHud("Your turn");renderBoards();},2000);}
-function tryPlaceAt(r,c){if(phase!=="placement"||!selectedShipId)return;var def=FLEET.find(function(s){return s.id===selectedShipId;});if(!def)return;if(findShip(playerShips,def.id))return;if(!canPlace(playerGrid,r,c,def.length,horizontal)){setHud("Invalid placement");return;}placeShipOnGrid(playerGrid,playerShips,def,r,c,horizontal);var nx=FLEET.find(function(s){return !findShip(playerShips,s.id);});selectedShipId=nx?nx.id:null;hoverCell=null;renderShipTray();renderBoards();if(allPlaced())setHud("Fleet ready — press Ready");}
-function openLevelScreen(){phase="level";gameScreen.classList.add("hidden");levelScreen.classList.remove("hidden");resultOverlay.classList.add("hidden");}
-function beginLevel(l){level=l;levelScreen.classList.add("hidden");gameScreen.classList.remove("hidden");startPlacement();}
-document.querySelectorAll(".level-btn").forEach(function(b){b.addEventListener("click",function(){beginLevel(b.dataset.level);});});
-rotateBtn.addEventListener("click",function(){if(phase!=="placement")return;horizontal=!horizontal;renderBoards();});
-readyBtn.addEventListener("click",function(){if(allPlaced())startCombat();});
-document.getElementById("newGameBtn").addEventListener("click",startPlacement);
-document.getElementById("changeLevelBtn").addEventListener("click",openLevelScreen);
-document.getElementById("playAgainBtn").addEventListener("click",startPlacement);
-document.getElementById("changeLevelFromResultBtn").addEventListener("click",openLevelScreen);
-playerBoardEl.addEventListener("click",function(e){var cell=e.target.closest(".cell");if(cell)tryPlaceAt(Number(cell.dataset.r),Number(cell.dataset.c));});
-playerBoardEl.addEventListener("mousemove",function(e){if(phase!=="placement"||!selectedShipId)return;var cell=e.target.closest(".cell");if(!cell)return;var r=Number(cell.dataset.r),c=Number(cell.dataset.c);if(!hoverCell||hoverCell.r!==r||hoverCell.c!==c){hoverCell={r:r,c:c};renderBoards();}});
-playerBoardEl.addEventListener("mouseleave",function(){if(phase==="placement"&&hoverCell){hoverCell=null;renderBoards();}});
-enemyBoardEl.addEventListener("click",function(e){var cell=e.target.closest(".cell");if(cell)handlePlayerFire(Number(cell.dataset.r),Number(cell.dataset.c));});
-updateAmmoUI();buildBoards();openLevelScreen();
-})();
-</script></body></html>
+<script>
+(() => {
+'use strict'
+
+/* =========================================================================
+   Icons
+   ========================================================================= */
+const ICONS = {
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  rotate: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  vol: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+  mute: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
+  shuffle: '<path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  anchor: '<path d="M12 6v16"/><path d="m19 13 2-1a9 9 0 0 1-18 0l2 1"/><path d="M9 11h6"/><circle cx="12" cy="4" r="2"/>',
+  cross: '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>',
+  move: '<path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/>',
+  ok: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  bad: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+}
+const icon = (n) => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[n] + '</svg>'
+const $ = (id) => document.getElementById(id)
+
+/* =========================================================================
+   Game logic
+   ========================================================================= */
+const SIZE = 10
+const LETTERS = 'ABCDEFGHIJ'
+const FLEET = [
+  { id: 'carrier', name: 'Carrier', length: 5 },
+  { id: 'battleship', name: 'Battleship', length: 4 },
+  { id: 'cruiser', name: 'Cruiser', length: 3 },
+  { id: 'submarine', name: 'Submarine', length: 3 },
+  { id: 'destroyer', name: 'Destroyer', length: 2 },
+]
+const LEVELS = [
+  { id: 'easy', name: 'Recruit', desc: 'Enemy fires at random' },
+  { id: 'medium', name: 'Officer', desc: 'Enemy hunts after a hit' },
+  { id: 'hard', name: 'Admiral', desc: 'Hunts, tracks lines & uses parity' },
+]
+const DEFAULT_QUESTIONS = [
+  { question: 'What is the capital of Australia?', options: ['Sydney', 'Canberra', 'Melbourne', 'Perth'], correct: 1 },
+  { question: 'Which planet is known as the Red Planet?', options: ['Venus', 'Jupiter', 'Mars', 'Mercury'], correct: 2 },
+  { question: 'What is 12 \u00d7 12?', options: ['124', '132', '144', '156'], correct: 2 },
+  { question: 'Which ocean is the largest?', options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'], correct: 3 },
+  { question: 'What gas do plants absorb from the air?', options: ['Oxygen', 'Carbon dioxide', 'Nitrogen', 'Helium'], correct: 1 },
+  { question: 'Who wrote "Romeo and Juliet"?', options: ['Dickens', 'Austen', 'Shakespeare', 'Twain'], correct: 2 },
+  { question: 'How many continents are there?', options: ['5', '6', '7', '8'], correct: 2 },
+  { question: 'What is the chemical symbol for water?', options: ['O2', 'H2O', 'CO2', 'HO'], correct: 1 },
+  { question: 'What is the square root of 81?', options: ['7', '8', '9', '10'], correct: 2 },
+  { question: 'Which is the longest river in South America?', options: ['Amazon', 'Orinoco', 'Paran\u00e1', 'Magdalena'], correct: 0 },
+  { question: 'What force keeps us on the ground?', options: ['Magnetism', 'Friction', 'Gravity', 'Inertia'], correct: 2 },
+  { question: 'Which instrument has 88 keys?', options: ['Guitar', 'Piano', 'Violin', 'Flute'], correct: 1 },
+]
+
+const emptyShots = () => Array.from({ length: SIZE }, () => Array(SIZE).fill(null))
+const createBoard = (ships = []) => ({ ships, shots: emptyShots() })
+const inBounds = (r, c) => r >= 0 && r < SIZE && c >= 0 && c < SIZE
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+const coord = (r, c) => LETTERS[c] + (r + 1)
+
+function cellsFor(r, c, length, horizontal) {
+  const out = []
+  for (let i = 0; i < length; i++) out.push({ r: horizontal ? r : r + i, c: horizontal ? c + i : c })
+  return out
+}
+const shipCells = (s) => cellsFor(s.r, s.c, s.length, s.horizontal)
+
+function canPlace(ships, length, r, c, horizontal, ignoreId) {
+  const cells = cellsFor(r, c, length, horizontal)
+  if (cells.some((x) => !inBounds(x.r, x.c))) return false
+  for (const s of ships) {
+    if (s.id === ignoreId) continue
+    for (const sc of shipCells(s)) if (cells.some((x) => x.r === sc.r && x.c === sc.c)) return false
+  }
+  return true
+}
+function placeShip(ships, def, r, c, horizontal) {
+  return ships.filter((s) => s.id !== def.id).concat([{ ...def, r, c, horizontal, hits: 0, sunk: false }])
+}
+function autoPlaceFleet() {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    let ships = []
+    let ok = true
+    for (const def of FLEET) {
+      let placed = false
+      for (let a = 0; a < 400 && !placed; a++) {
+        const horizontal = Math.random() < 0.5
+        const r = Math.floor(Math.random() * SIZE)
+        const c = Math.floor(Math.random() * SIZE)
+        if (canPlace(ships, def.length, r, c, horizontal)) {
+          ships = placeShip(ships, def, r, c, horizontal)
+          placed = true
+        }
+      }
+      if (!placed) { ok = false; break }
+    }
+    if (ok) return ships
+  }
+  return null
+}
+const shipAt = (ships, r, c) => ships.find((s) => shipCells(s).some((x) => x.r === r && x.c === c))
+const fleetSunk = (ships) => ships.length > 0 && ships.every((s) => s.sunk)
+
+function applyShot(board, r, c) {
+  if (board.shots[r][c] !== null) return null
+  const shots = board.shots.map((row) => row.slice())
+  const target = shipAt(board.ships, r, c)
+  if (!target) {
+    shots[r][c] = 'miss'
+    return { board: { ships: board.ships, shots }, result: 'miss', ship: null }
+  }
+  shots[r][c] = 'hit'
+  const hits = target.hits + 1
+  const sunk = hits >= target.length
+  const updated = { ...target, hits, sunk }
+  if (sunk) for (const cell of shipCells(updated)) shots[cell.r][cell.c] = 'sunk'
+  const ships = board.ships.map((s) => (s.id === target.id ? updated : s))
+  return { board: { ships, shots }, result: sunk ? 'sunk' : 'hit', ship: updated }
+}
+
+/* ---- AI ---- */
+const createAiMemory = () => ({ queue: [], hits: [], parity: Math.random() < 0.5 ? 0 : 1 })
+function shuffle(a) {
+  const s = a.slice()
+  for (let i = s.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[s[i], s[j]] = [s[j], s[i]]
+  }
+  return s
+}
+const neighbors = (r, c) => [{ r: r - 1, c }, { r: r + 1, c }, { r, c: c - 1 }, { r, c: c + 1 }].filter((n) => inBounds(n.r, n.c))
+function unshot(shots) {
+  const out = []
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (shots[r][c] === null) out.push({ r, c })
+  return out
+}
+const pick = (arr) => (arr.length ? arr[Math.floor(Math.random() * arr.length)] : null)
+function alignedContinuation(mem, shots) {
+  if (mem.hits.length < 2) return null
+  const rows = mem.hits.map((h) => h.r)
+  const cols = mem.hits.map((h) => h.c)
+  const sameRow = rows.every((r) => r === rows[0])
+  const sameCol = cols.every((c) => c === cols[0])
+  if (!sameRow && !sameCol) return null
+  const cands = []
+  if (sameRow) {
+    const row = rows[0]
+    const s = cols.slice().sort((a, b) => a - b)
+    const l = s[0] - 1
+    const r2 = s[s.length - 1] + 1
+    if (inBounds(row, l) && shots[row][l] === null) cands.push({ r: row, c: l })
+    if (inBounds(row, r2) && shots[row][r2] === null) cands.push({ r: row, c: r2 })
+  } else {
+    const col = cols[0]
+    const s = rows.slice().sort((a, b) => a - b)
+    const up = s[0] - 1
+    const dn = s[s.length - 1] + 1
+    if (inBounds(up, col) && shots[up][col] === null) cands.push({ r: up, c: col })
+    if (inBounds(dn, col) && shots[dn][col] === null) cands.push({ r: dn, c: col })
+  }
+  return pick(cands)
+}
+function chooseAiShot(level, shots, mem) {
+  if (level === 'easy') return { cell: pick(unshot(shots)), mem }
+  const queue = mem.queue.filter((n) => shots[n.r][n.c] === null)
+  if (level === 'hard') {
+    const cont = alignedContinuation({ ...mem, queue }, shots)
+    if (cont) return { cell: cont, mem: { ...mem, queue } }
+  }
+  if (queue.length) {
+    const [next, ...rest] = queue
+    return { cell: next, mem: { ...mem, queue: rest } }
+  }
+  if (level === 'hard') {
+    const open = unshot(shots)
+    const par = open.filter((x) => (x.r + x.c) % 2 === mem.parity)
+    return { cell: pick(par.length ? par : open), mem: { ...mem, queue } }
+  }
+  return { cell: pick(unshot(shots)), mem: { ...mem, queue } }
+}
+function updateAiMemory(level, mem, shots, r, c, result) {
+  if (level === 'easy') return mem
+  if (result === 'hit') {
+    const queue = mem.queue.slice()
+    for (const n of shuffle(neighbors(r, c))) {
+      if (shots[n.r][n.c] !== null) continue
+      if (!queue.some((q) => q.r === n.r && q.c === n.c)) queue.push(n)
+    }
+    return { ...mem, hits: mem.hits.concat([{ r, c }]), queue }
+  }
+  if (result === 'sunk') return { ...mem, hits: [], queue: [] }
+  return { ...mem, queue: mem.queue.filter((n) => shots[n.r][n.c] === null) }
+}
+
+/* =========================================================================
+   Sound (all synthesised, no files)
+   ========================================================================= */
+const Sound = (() => {
+  let ctx = null, muted = false, noiseBuf = null
+  function ac() {
+    if (muted) return null
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext
+      if (!C) return null
+      ctx = new C()
+    }
+    if (ctx.state === 'suspended') ctx.resume()
+    return ctx
+  }
+  function noise(a) {
+    if (!noiseBuf) {
+      noiseBuf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate)
+      const d = noiseBuf.getChannelData(0)
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    }
+    return noiseBuf
+  }
+  function burst(o) {
+    const a = ac(); if (!a) return
+    const t0 = a.currentTime + (o.delay || 0)
+    const src = a.createBufferSource(); src.buffer = noise(a)
+    const f = a.createBiquadFilter(); f.type = o.type || 'lowpass'; f.Q.value = o.q || 0.8
+    f.frequency.setValueAtTime(o.freq, t0)
+    f.frequency.exponentialRampToValueAtTime(Math.max(40, o.freqEnd), t0 + o.dur)
+    const g = a.createGain()
+    g.gain.setValueAtTime(0.0001, t0)
+    g.gain.exponentialRampToValueAtTime(o.gain, t0 + 0.012)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dur)
+    src.connect(f); f.connect(g); g.connect(a.destination)
+    src.start(t0); src.stop(t0 + o.dur + 0.05)
+  }
+  function tone(freq, dur, gain, type, delay, freqEnd) {
+    const a = ac(); if (!a) return
+    const t0 = a.currentTime + (delay || 0)
+    const o = a.createOscillator(); o.type = type || 'sine'
+    o.frequency.setValueAtTime(freq, t0)
+    if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur)
+    const g = a.createGain()
+    g.gain.setValueAtTime(0.0001, t0)
+    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.015)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    o.connect(g); g.connect(a.destination)
+    o.start(t0); o.stop(t0 + dur + 0.05)
+  }
+  return {
+    setMuted(v) { muted = v },
+    isMuted() { return muted },
+    unlock() { ac() },
+    click() { tone(520, 0.07, 0.05, 'triangle') },
+    lift() { tone(380, 0.09, 0.05, 'triangle', 0, 560) },
+    place() { tone(180, 0.16, 0.12, 'sine', 0, 90); burst({ freq: 900, freqEnd: 200, dur: 0.2, gain: 0.05 }) },
+    error() { tone(160, 0.18, 0.07, 'sawtooth', 0, 110) },
+    rotate() { tone(440, 0.06, 0.04, 'triangle', 0, 620) },
+    launch() { burst({ freq: 3000, freqEnd: 400, dur: 0.5, gain: 0.07, type: 'bandpass', q: 1.5 }); tone(900, 0.5, 0.03, 'sine', 0, 220) },
+    splash() { burst({ freq: 3500, freqEnd: 500, dur: 0.55, gain: 0.16 }); tone(240, 0.2, 0.05, 'sine', 0, 80) },
+    boom() { burst({ freq: 1400, freqEnd: 70, dur: 0.9, gain: 0.35 }); tone(90, 0.6, 0.3, 'sine', 0, 35) },
+    sunk() {
+      burst({ freq: 1200, freqEnd: 50, dur: 1.6, gain: 0.4 }); tone(70, 1.2, 0.35, 'sine', 0, 28)
+      burst({ freq: 900, freqEnd: 60, dur: 1.2, gain: 0.25, delay: 0.25 })
+    },
+    ping() { tone(1320, 0.5, 0.06, 'sine') },
+    correct() { tone(660, 0.12, 0.08, 'triangle'); tone(990, 0.2, 0.08, 'triangle', 0.1) },
+    wrong() { tone(220, 0.25, 0.08, 'sawtooth', 0, 150) },
+    win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.28, 0.09, 'triangle', i * 0.13)) },
+    lose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.35, 0.09, 'sawtooth', i * 0.18)) },
+  }
+})()
+const sfx = Sound
+
+/* =========================================================================
+   Animated top-down ocean
+   ========================================================================= */
+const WATER_LIFE = 3.2
+const LUT = (() => {
+  const stops = [[5, 34, 58], [9, 62, 92], [16, 104, 132], [48, 160, 182], [150, 218, 226]]
+  const lut = new Uint8ClampedArray(256 * 3)
+  for (let i = 0; i < 256; i++) {
+    const f = (i / 255) * (stops.length - 1)
+    const k = Math.min(stops.length - 2, Math.floor(f))
+    const m = f - k
+    for (let ch = 0; ch < 3; ch++) lut[i * 3 + ch] = stops[k][ch] + (stops[k + 1][ch] - stops[k][ch]) * m
+  }
+  return lut
+})()
+
+class Water {
+  constructor(baseRes) {
+    this.baseRes = baseRes || 120
+    this.off = document.createElement('canvas')
+    this.octx = this.off.getContext('2d')
+    this.img = null; this.lw = 0; this.lh = 0
+  }
+  ensure(aspect) {
+    const lw = this.baseRes
+    const lh = Math.max(8, Math.round(this.baseRes / aspect))
+    if (lw !== this.lw || lh !== this.lh || !this.img) {
+      this.lw = lw; this.lh = lh
+      this.off.width = lw; this.off.height = lh
+      this.img = this.octx.createImageData(lw, lh)
+    }
+  }
+  draw(ctx, W, H, worldW, worldH, t, ripples) {
+    this.ensure(W / H)
+    const data = this.img.data
+    const lw = this.lw, lh = this.lh
+    const active = ripples.filter((r) => t - r.t0 < WATER_LIFE && t - r.t0 >= 0)
+    const rc = active.length
+    const rx = [], ry = [], rrad = [], rfade = []
+    for (let i = 0; i < rc; i++) {
+      const r = active[i], age = t - r.t0
+      rx.push(r.x); ry.push(r.y)
+      rrad.push(age * (r.speed || 3.6))
+      rfade.push(r.strength * (1 - age / WATER_LIFE) * (1 - age / WATER_LIFE))
+    }
+    let p = 0
+    for (let y = 0; y < lh; y++) {
+      const v = ((y + 0.5) / lh) * worldH
+      for (let x = 0; x < lw; x++) {
+        const u = ((x + 0.5) / lw) * worldW
+        const a = Math.sin(u * 1.35 + t * 0.8 + Math.sin(v * 0.9 + t * 0.4) * 1.2)
+        const b = Math.sin(v * 1.7 - t * 0.65 + Math.sin(u * 1.1 - t * 0.3) * 1.4)
+        const c = Math.sin((u + v) * 0.9 + t * 0.55)
+        let n = 0.42 + (a + b + c) * 0.11
+        const q = Math.sin(u * 2.3 + Math.sin(v * 2.0 + t * 0.7) * 1.6 + t * 0.5) + Math.sin(v * 2.6 + Math.sin(u * 1.8 - t * 0.6) * 1.5 - t * 0.45)
+        const ridge = 1 - Math.abs(q * 0.5)
+        const r2 = ridge * ridge, r4 = r2 * r2
+        const caustic = r4 * r4
+        let glint = 0
+        for (let i = 0; i < rc; i++) {
+          const dx = u - rx[i], dy = v - ry[i]
+          const d = Math.sqrt(dx * dx + dy * dy)
+          const delta = d - rrad[i]
+          if (delta > 1.6 || delta < -1.6) continue
+          const env = Math.exp(-delta * delta * 2.2) * rfade[i]
+          const wave = Math.cos(delta * 7)
+          n += wave * env * 0.2
+          glint += env * (wave > 0.6 ? wave : 0)
+        }
+        let idx = (n * 255) | 0
+        if (idx < 0) idx = 0; else if (idx > 255) idx = 255
+        const li = idx * 3
+        const boost = caustic * 34 + glint * 90
+        data[p++] = LUT[li] + boost * 0.7
+        data[p++] = LUT[li + 1] + boost * 0.95
+        data[p++] = LUT[li + 2] + boost
+        data[p++] = 255
+      }
+    }
+    this.octx.putImageData(this.img, 0, 0)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(this.off, 0, 0, W, H)
+  }
+}
+
+/* =========================================================================
+   Top-down ship renderer
+   ========================================================================= */
+const SPECS = {
+  carrier: { hw: 0.43, bow: 0.95, edge: '#46545f', mid: '#8798a4', deck: '#3d4953', line: '#222c34' },
+  battleship: { hw: 0.37, bow: 0.9, edge: '#4a5964', mid: '#9aa9b3', deck: '#7c8d99', line: '#232d35' },
+  cruiser: { hw: 0.33, bow: 0.8, edge: '#4d5c68', mid: '#a3b2bb', deck: '#82929e', line: '#242e36' },
+  submarine: { hw: 0.25, bow: 0.55, edge: '#1d3440', mid: '#3f6070', deck: '#2f4b59', line: '#12232c' },
+  destroyer: { hw: 0.28, bow: 0.75, edge: '#505f6b', mid: '#a9b8c1', deck: '#889aa6', line: '#252f37' },
+}
+function hullPath(ctx, x0, x1, hw, bow, round) {
+  const sh = x1 - bow
+  ctx.beginPath()
+  if (round) {
+    ctx.moveTo(x0 + 0.2, -hw); ctx.lineTo(sh, -hw)
+    ctx.quadraticCurveTo(x1, -hw, x1, 0); ctx.quadraticCurveTo(x1, hw, sh, hw)
+    ctx.lineTo(x0 + 0.2, hw); ctx.quadraticCurveTo(x0, hw, x0, 0); ctx.quadraticCurveTo(x0, -hw, x0 + 0.2, -hw)
+  } else {
+    ctx.moveTo(x0, -hw * 0.82); ctx.lineTo(sh, -hw)
+    ctx.quadraticCurveTo(x1 - bow * 0.22, -hw * 0.82, x1, 0)
+    ctx.quadraticCurveTo(x1 - bow * 0.22, hw * 0.82, sh, hw)
+    ctx.lineTo(x0, hw * 0.82); ctx.quadraticCurveTo(x0 - 0.05, 0, x0, -hw * 0.82)
+  }
+  ctx.closePath()
+}
+function turret(ctx, x, y, r, barrels, aim) {
+  barrels = barrels || 2; aim = aim || 0
+  ctx.save(); ctx.translate(x, y); ctx.rotate(aim)
+  ctx.strokeStyle = '#1d262d'; ctx.lineCap = 'round'; ctx.lineWidth = r * 0.34
+  const spread = barrels === 3 ? r * 0.55 : r * 0.38
+  const list = barrels === 3 ? [-spread, 0, spread] : barrels === 1 ? [0] : [-spread, spread]
+  for (const oy of list) { ctx.beginPath(); ctx.moveTo(r * 0.3, oy); ctx.lineTo(r * 2.5, oy); ctx.stroke() }
+  ctx.fillStyle = '#6d7e8a'; ctx.strokeStyle = '#1d262d'; ctx.lineWidth = 0.02
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#93a3ae'
+  ctx.beginPath(); ctx.arc(-r * 0.15, -r * 0.15, r * 0.5, 0, Math.PI * 2); ctx.fill()
+  ctx.restore()
+}
+function funnel(ctx, x, y, rx, ry) {
+  ctx.fillStyle = '#28333b'; ctx.strokeStyle = '#11181d'; ctx.lineWidth = 0.02
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#0c1115'
+  ctx.beginPath(); ctx.ellipse(x, y, rx * 0.6, ry * 0.6, 0, 0, Math.PI * 2); ctx.fill()
+}
+function bridge(ctx, x, y, w, h) {
+  ctx.fillStyle = '#b6c3cb'; ctx.strokeStyle = '#2a353d'; ctx.lineWidth = 0.02
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 0.04); ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#5a6b77'
+  ctx.fillRect(x - w * 0.28, y - h * 0.3, w * 0.56, h * 0.3)
+}
+function plane(ctx, x, y, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot)
+  ctx.fillStyle = '#cfd7dc'; ctx.strokeStyle = '#27323a'; ctx.lineWidth = 0.012
+  ctx.beginPath(); ctx.roundRect(-0.14, -0.022, 0.3, 0.044, 0.02); ctx.fill(); ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(-0.01, -0.13); ctx.lineTo(0.05, 0); ctx.lineTo(-0.01, 0.13); ctx.lineTo(-0.045, 0.13)
+  ctx.lineTo(-0.02, 0); ctx.lineTo(-0.045, -0.13); ctx.closePath(); ctx.fill(); ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(-0.13, -0.002); ctx.lineTo(-0.16, -0.06); ctx.lineTo(-0.12, -0.06); ctx.lineTo(-0.1, 0)
+  ctx.lineTo(-0.12, 0.06); ctx.lineTo(-0.16, 0.06); ctx.closePath(); ctx.fill()
+  ctx.restore()
+}
+function hashPhase(id) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return (Math.abs(h) % 628) / 100
+}
+function shipDetails(ctx, id, L, spec, x0, x1) {
+  const hw = spec.hw
+  switch (id) {
+    case 'carrier':
+      ctx.save()
+      ctx.strokeStyle = 'rgba(240,245,248,.85)'; ctx.lineWidth = 0.022; ctx.setLineDash([0.13, 0.1])
+      ctx.beginPath(); ctx.moveTo(x0 + 0.25, 0.06); ctx.lineTo(x1 - 0.55, 0.06); ctx.stroke()
+      ctx.setLineDash([])
+      ctx.strokeStyle = 'rgba(255,200,70,.75)'; ctx.lineWidth = 0.02
+      ctx.beginPath(); ctx.moveTo(x0 + 0.3, -0.2); ctx.lineTo(x1 - 0.8, -0.06); ctx.stroke()
+      ctx.restore()
+      plane(ctx, x0 + 0.62, -0.19, 0.1); plane(ctx, x0 + 1.25, -0.19, -0.05)
+      plane(ctx, x0 + 1.9, -0.19, 0.08); plane(ctx, x0 + 0.9, 0.27, Math.PI + 0.1)
+      bridge(ctx, x0 + L * 0.5 + 0.1, hw * 0.62, 0.52, 0.17)
+      ctx.fillStyle = '#d5dde2'
+      ctx.beginPath(); ctx.arc(x0 + L * 0.5 + 0.05, hw * 0.62, 0.045, 0, Math.PI * 2); ctx.fill()
+      break
+    case 'battleship':
+      funnel(ctx, x0 + 0.78, 0, 0.12, 0.11); bridge(ctx, x0 + 1.45, 0, 0.42, 0.26)
+      turret(ctx, x0 + 0.24, 0, 0.13, 3); turret(ctx, x1 - 1.0, 0, 0.14, 3); turret(ctx, x1 - 0.5, 0, 0.12, 2)
+      break
+    case 'cruiser':
+      funnel(ctx, x0 + 0.55, 0, 0.1, 0.09); bridge(ctx, x0 + 1.15, 0, 0.34, 0.22)
+      turret(ctx, x0 + 0.2, 0, 0.11, 2); turret(ctx, x1 - 0.55, 0, 0.12, 2)
+      break
+    case 'submarine':
+      ctx.strokeStyle = 'rgba(160,210,225,.35)'; ctx.lineWidth = 0.02
+      ctx.beginPath(); ctx.moveTo(x0 + 0.35, 0); ctx.lineTo(x1 - 0.35, 0); ctx.stroke()
+      ctx.fillStyle = '#1b303a'; ctx.strokeStyle = '#0d1c23'; ctx.lineWidth = 0.02
+      ctx.beginPath(); ctx.ellipse(x0 + L * 0.5 + 0.05, 0, 0.26, 0.13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      ctx.lineWidth = 0.022
+      ctx.beginPath(); ctx.moveTo(x0 + L * 0.5 + 0.1, 0); ctx.lineTo(x0 + L * 0.5 + 0.1, -0.2); ctx.stroke()
+      ctx.fillStyle = '#304d5a'
+      ctx.beginPath()
+      ctx.moveTo(x0 + 0.1, 0); ctx.lineTo(x0 - 0.04, -0.3); ctx.lineTo(x0 + 0.16, -0.24)
+      ctx.lineTo(x0 + 0.24, 0); ctx.lineTo(x0 + 0.16, 0.24); ctx.lineTo(x0 - 0.04, 0.3)
+      ctx.closePath(); ctx.fill()
+      break
+    case 'destroyer':
+      funnel(ctx, x0 + 0.38, 0, 0.09, 0.08); bridge(ctx, x0 + 0.78, 0, 0.26, 0.17)
+      turret(ctx, x1 - 0.55, 0, 0.1, 2); turret(ctx, x0 + 0.1, 0, 0.085, 1)
+      break
+  }
+}
+function drawShip(ctx, o) {
+  const spec = SPECS[o.id]
+  const L = o.length
+  const x0 = -0.5 + 0.03
+  const x1 = L - 0.5 - 0.03
+  const round = o.id === 'submarine'
+  const phase = hashPhase(o.id)
+  const bobY = o.bob ? Math.sin(o.t * 1.25 + phase) * 0.014 : 0
+  const bobR = o.bob ? Math.sin(o.t * 0.9 + phase * 1.7) * 0.012 : 0
+  const lift = o.lifted ? 1.05 : 1
+  const sunk = o.tint === 'sunk'
+
+  ctx.save()
+  ctx.globalAlpha = o.alpha == null ? 1 : o.alpha
+
+  ctx.save()
+  const sOff = o.lifted ? 0.2 : 0.08
+  ctx.translate(o.x + o.cell * sOff, o.y + o.cell * (sOff + 0.04))
+  ctx.rotate(o.angle); ctx.scale(o.cell * lift, o.cell * lift)
+  ctx.fillStyle = sunk ? 'rgba(0,10,14,.18)' : 'rgba(0,18,28,.34)'
+  hullPath(ctx, x0, x1, spec.hw, spec.bow, round); ctx.fill()
+  ctx.restore()
+
+  ctx.translate(o.x, o.y); ctx.rotate(o.angle + bobR)
+  ctx.scale(o.cell * lift, o.cell * lift); ctx.translate(0, bobY)
+
+  if (o.foam !== false) {
+    ctx.save(); ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(230,250,255,' + (0.22 + 0.1 * Math.sin(o.t * 2 + phase)) + ')'
+    ctx.lineWidth = 0.1
+    hullPath(ctx, x0, x1, spec.hw + 0.02, spec.bow, round); ctx.stroke()
+    ctx.restore()
+  }
+  if (!sunk && o.foam !== false) {
+    const g = ctx.createLinearGradient(x0, 0, x0 - 0.5, 0)
+    g.addColorStop(0, 'rgba(235,252,255,.32)'); g.addColorStop(1, 'rgba(235,252,255,0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.moveTo(x0 + 0.05, -spec.hw * 0.6)
+    ctx.lineTo(x0 - 0.5, -spec.hw * 0.95 - 0.04 * Math.sin(o.t * 2 + phase))
+    ctx.lineTo(x0 - 0.5, spec.hw * 0.95 + 0.04 * Math.sin(o.t * 2.3 + phase))
+    ctx.lineTo(x0 + 0.05, spec.hw * 0.6)
+    ctx.closePath(); ctx.fill()
+  }
+
+  const grad = ctx.createLinearGradient(0, -spec.hw, 0, spec.hw)
+  grad.addColorStop(0, spec.edge); grad.addColorStop(0.5, spec.mid); grad.addColorStop(1, spec.edge)
+  ctx.fillStyle = grad; ctx.strokeStyle = spec.line; ctx.lineWidth = 0.03; ctx.lineJoin = 'round'
+  hullPath(ctx, x0, x1, spec.hw, spec.bow, round); ctx.fill(); ctx.stroke()
+
+  ctx.fillStyle = spec.deck; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 0.015
+  hullPath(ctx, x0 + 0.07, x1 - 0.1, spec.hw * (o.id === 'carrier' ? 0.9 : 0.72), spec.bow * 0.85, round)
+  ctx.fill(); ctx.stroke()
+
+  shipDetails(ctx, o.id, L, spec, x0, x1)
+
+  if (round) {
+    ctx.fillStyle = 'rgba(20,120,150,.22)'
+    hullPath(ctx, x0, x1, spec.hw, spec.bow, true); ctx.fill()
+  }
+  if (o.tint === 'valid') {
+    ctx.fillStyle = 'rgba(70,240,150,.32)'; hullPath(ctx, x0, x1, spec.hw, spec.bow, round); ctx.fill()
+  } else if (o.tint === 'invalid') {
+    ctx.fillStyle = 'rgba(255,70,70,.42)'; hullPath(ctx, x0, x1, spec.hw, spec.bow, round); ctx.fill()
+  } else if (sunk) {
+    ctx.fillStyle = 'rgba(14,8,4,.62)'; hullPath(ctx, x0, x1, spec.hw, spec.bow, round); ctx.fill()
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 0.03
+    ctx.beginPath()
+    ctx.moveTo(x0 + L * 0.3, -spec.hw); ctx.lineTo(x0 + L * 0.34, 0.05); ctx.lineTo(x0 + L * 0.28, spec.hw)
+    ctx.moveTo(x0 + L * 0.68, -spec.hw); ctx.lineTo(x0 + L * 0.64, -0.04); ctx.lineTo(x0 + L * 0.7, spec.hw)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawShipIcon(canvas, id, length, cell, sunk) {
+  const w = Math.round(cell * (length + 0.4))
+  const h = Math.round(cell * 1.05)
+  const dpr = Math.min(2, window.devicePixelRatio || 1)
+  canvas.width = w * dpr; canvas.height = h * dpr
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px'
+  const ctx = canvas.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  drawShip(ctx, { id, length, x: cell * 0.7, y: h / 2, angle: 0, cell, t: 0, foam: false, tint: sunk ? 'sunk' : null })
+}
+
+/* =========================================================================
+   Particles
+   ========================================================================= */
+const rnd = (a, b) => a + Math.random() * (b - a)
+class Fx {
+  constructor() { this.ps = [] }
+  add(p) { if (this.ps.length >= 700) this.ps.shift(); this.ps.push(p) }
+  P(kind, x, y, o) { this.add(Object.assign({ kind, x, y, vx: 0, vy: 0, z: 0, vz: 0, life: 0, max: 1, size: 0.1, grow: 0 }, o)) }
+  explosion(x, y, big) {
+    this.P('flash', x, y, { max: 0.35, size: big ? 1.5 : 1.1 })
+    this.P('ring', x, y, { max: 0.7, size: 0.15, grow: big ? 3.4 : 2.6 })
+    const fire = big ? 26 : 18
+    for (let i = 0; i < fire; i++) {
+      const a = Math.random() * Math.PI * 2, s = rnd(0.4, big ? 2.6 : 2.0)
+      this.P('fire', x, y, { vx: Math.cos(a) * s, vy: Math.sin(a) * s, max: rnd(0.35, 0.8), size: rnd(0.12, 0.26), grow: 0.2 })
+    }
+    for (let i = 0; i < (big ? 22 : 14); i++) {
+      const a = Math.random() * Math.PI * 2, s = rnd(1.5, 4.5)
+      this.P('spark', x, y, { vx: Math.cos(a) * s, vy: Math.sin(a) * s, max: rnd(0.3, 0.7), size: rnd(0.04, 0.09) })
+    }
+    for (let i = 0; i < (big ? 12 : 7); i++) this.smoke(x + rnd(-0.2, 0.2), y + rnd(-0.2, 0.2), 0.6)
+  }
+  splash(x, y) {
+    this.P('ring', x, y, { max: 0.9, size: 0.1, grow: 2.2 })
+    this.P('ring', x, y, { life: -0.12, max: 0.9, size: 0.1, grow: 1.5 })
+    for (let i = 0; i < 22; i++) {
+      const a = Math.random() * Math.PI * 2, s = rnd(0.2, 1.4)
+      this.P('drop', x, y, { vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: rnd(1.6, 3.6), max: 1.2, size: rnd(0.035, 0.075) })
+    }
+  }
+  flame(x, y) {
+    this.P('fire', x + rnd(-0.22, 0.22), y + rnd(-0.22, 0.22), { vx: rnd(-0.12, 0.12), vy: rnd(-0.5, -0.15), max: rnd(0.4, 0.8), size: rnd(0.07, 0.15), grow: -0.05 })
+  }
+  smoke(x, y, dark) {
+    this.P('smoke', x, y, { vx: rnd(0.05, 0.4), vy: rnd(-0.55, -0.15), max: rnd(1.4, 2.6), size: rnd(0.1, 0.18), grow: rnd(0.15, 0.3), dark: dark == null ? 0.4 : dark })
+  }
+  trail(x, y) {
+    this.P('smoke', x + rnd(-0.03, 0.03), y + rnd(-0.03, 0.03), { max: 0.7, size: 0.06, grow: 0.12, dark: 0.9 })
+  }
+  update(dt) {
+    for (const p of this.ps) {
+      p.life += dt
+      if (p.life < 0) continue
+      p.x += p.vx * dt; p.y += p.vy * dt
+      if (p.kind === 'drop') {
+        p.z += p.vz * dt; p.vz -= 9 * dt
+        p.vx *= 1 - dt * 0.8; p.vy *= 1 - dt * 0.8
+        if (p.z <= 0 && p.life > 0.08) p.life = p.max
+      } else if (p.kind === 'spark') {
+        p.vx *= 1 - dt * 2.2; p.vy *= 1 - dt * 2.2
+      } else if (p.kind === 'fire') {
+        p.vx *= 1 - dt * 1.6; p.vy *= 1 - dt * 1.6
+      }
+      p.size = Math.max(0, p.size + p.grow * dt)
+    }
+    this.ps = this.ps.filter((p) => p.life < p.max)
+  }
+  draw(ctx, ox, oy, cell) {
+    for (const p of this.ps) {
+      if (p.life < 0) continue
+      const f = p.life / p.max
+      const X = (p.x + ox) * cell, Y = (p.y + oy) * cell
+      if (p.kind === 'smoke') {
+        const shade = Math.round(20 + (1 - (p.dark == null ? 0.4 : p.dark)) * 90)
+        ctx.fillStyle = 'rgba(' + shade + ',' + (shade + 4) + ',' + (shade + 8) + ',' + 0.32 * (1 - f) * Math.min(1, f * 6) + ')'
+        ctx.beginPath(); ctx.arc(X, Y, p.size * cell, 0, Math.PI * 2); ctx.fill()
+      } else if (p.kind === 'ring') {
+        ctx.strokeStyle = 'rgba(235,252,255,' + 0.7 * (1 - f) + ')'
+        ctx.lineWidth = Math.max(1, cell * 0.04 * (1 - f))
+        ctx.beginPath(); ctx.arc(X, Y, p.size * cell, 0, Math.PI * 2); ctx.stroke()
+      } else if (p.kind === 'drop') {
+        const s = p.size * cell * (1 + p.z * 0.25)
+        ctx.fillStyle = 'rgba(240,252,255,' + 0.85 * (1 - f * 0.5) + ')'
+        ctx.beginPath(); ctx.arc(X, Y - p.z * cell * 0.35, s, 0, Math.PI * 2); ctx.fill()
+      }
+    }
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (const p of this.ps) {
+      if (p.life < 0) continue
+      const f = p.life / p.max
+      const X = (p.x + ox) * cell, Y = (p.y + oy) * cell
+      if (p.kind === 'fire') {
+        const g = Math.round(210 * (1 - f) + 40)
+        ctx.fillStyle = 'rgba(255,' + g + ',' + Math.round(40 * (1 - f)) + ',' + 0.55 * (1 - f) + ')'
+        ctx.beginPath(); ctx.arc(X, Y, Math.max(0.5, p.size * cell), 0, Math.PI * 2); ctx.fill()
+      } else if (p.kind === 'spark') {
+        ctx.strokeStyle = 'rgba(255,' + Math.round(220 - 120 * f) + ',90,' + (1 - f) + ')'
+        ctx.lineWidth = Math.max(1, p.size * cell * 0.8); ctx.lineCap = 'round'
+        ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X - p.vx * cell * 0.05, Y - p.vy * cell * 0.05); ctx.stroke()
+      } else if (p.kind === 'flash') {
+        const r = p.size * cell * (0.4 + f * 0.9)
+        const g = ctx.createRadialGradient(X, Y, 0, X, Y, r)
+        g.addColorStop(0, 'rgba(255,250,210,' + 0.95 * (1 - f) + ')')
+        g.addColorStop(0.35, 'rgba(255,170,60,' + 0.6 * (1 - f) + ')')
+        g.addColorStop(1, 'rgba(255,80,20,0)')
+        ctx.fillStyle = g
+        ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2); ctx.fill()
+      }
+    }
+    ctx.restore()
+  }
+}
+
+/* =========================================================================
+   Board canvas (water, ships, fire, ghost, reticle, shells, radar)
+   ========================================================================= */
+const PAD = 0.8
+const WORLD = SIZE + PAD * 2
+const clamp01 = (v) => Math.max(0, Math.min(1, v))
+
+function drawFinger(ctx, fx, fy, tx, ty, cell, t) {
+  ctx.save()
+  ctx.setLineDash([cell * 0.1, cell * 0.12])
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = Math.max(1.5, cell * 0.035)
+  ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke()
+  ctx.setLineDash([])
+  const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, cell * 0.9)
+  g.addColorStop(0, 'rgba(255,255,255,.28)'); g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(fx, fy, cell * 0.9, 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'
+  ctx.beginPath(); ctx.arc(fx, fy, cell * (0.55 + 0.04 * Math.sin(t * 6)), 0, Math.PI * 2); ctx.stroke()
+  ctx.restore()
+}
+
+class BoardView {
+  constructor(wrap, canvas, kind, getProps) {
+    this.wrap = wrap; this.canvas = canvas; this.kind = kind; this.getProps = getProps
+    this.ctx = canvas.getContext('2d')
+    this.water = new Water(116)
+    this.fx = new Fx()
+    this.ripples = []; this.shells = []; this.shake_ = 0
+    this.last = performance.now() / 1000
+    this.gh = { x: 0, y: 0, a: 0, active: false }
+    this.onPointer = null
+    new ResizeObserver(() => this.resize()).observe(wrap)
+    this.resize()
+    this.bindPointer()
+    requestAnimationFrame((ms) => this.frame(ms))
+  }
+  resize() {
+    const w = this.wrap.clientWidth
+    if (w < 2) return
+    const dpr = Math.min(2, window.devicePixelRatio || 1)
+    const px = Math.round(w * dpr)
+    if (this.canvas.width !== px) { this.canvas.width = px; this.canvas.height = px }
+  }
+  now() { return performance.now() / 1000 }
+  toCell(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect()
+    if (!rect || rect.width === 0) return { fr: -99, fc: -99 }
+    return { fc: ((clientX - rect.left) / rect.width) * WORLD - PAD, fr: ((clientY - rect.top) / rect.height) * WORLD - PAD }
+  }
+  launch(r, c, durMs, from, onLand) {
+    sfx.launch()
+    this.shells.push({ r, c, from, t0: this.now(), dur: durMs / 1000, onLand, lastTrail: 0 })
+  }
+  ripple(r, c, strength) {
+    this.ripples.push({ x: c + 0.5 + PAD, y: r + 0.5 + PAD, t0: this.now(), strength: strength == null ? 0.9 : strength })
+  }
+  impact(r, c, result, ship) {
+    const x = c + 0.5, y = r + 0.5, t = this.now()
+    if (result === 'miss') {
+      this.fx.splash(x, y)
+      this.ripples.push({ x: x + PAD, y: y + PAD, t0: t, strength: 1.2 })
+      this.shake_ = Math.max(this.shake_, 2)
+      sfx.splash()
+    } else if (result === 'hit') {
+      this.fx.explosion(x, y, false)
+      this.ripples.push({ x: x + PAD, y: y + PAD, t0: t, strength: 1.1 })
+      this.shake_ = Math.max(this.shake_, 8)
+      sfx.boom()
+    } else {
+      const cells = ship ? shipCells(ship) : [{ r, c }]
+      cells.forEach((cl, i) => {
+        setTimeout(() => {
+          this.fx.explosion(cl.c + 0.5, cl.r + 0.5, true)
+          this.ripples.push({ x: cl.c + 0.5 + PAD, y: cl.r + 0.5 + PAD, t0: this.now(), strength: 1.3 })
+          this.shake_ = Math.max(this.shake_, 12)
+        }, i * 110)
+      })
+      sfx.sunk()
+    }
+  }
+  bindPointer() {
+    const cv = this.canvas
+    const emit = (e, phase) => {
+      if (!this.onPointer) return
+      const rect = cv.getBoundingClientRect()
+      this.onPointer({
+        phase,
+        fc: ((e.clientX - rect.left) / rect.width) * WORLD - PAD,
+        fr: ((e.clientY - rect.top) / rect.height) * WORLD - PAD,
+        clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType, button: e.button,
+      })
+    }
+    const live = () => this.getProps().interactive
+    cv.addEventListener('pointerdown', (e) => { if (!live()) return; cv.setPointerCapture(e.pointerId); emit(e, 'down') })
+    cv.addEventListener('pointermove', (e) => { if (live()) emit(e, 'move') })
+    cv.addEventListener('pointerup', (e) => {
+      if (!live()) return
+      if (cv.hasPointerCapture(e.pointerId)) cv.releasePointerCapture(e.pointerId)
+      emit(e, 'up')
+    })
+    cv.addEventListener('pointercancel', (e) => { if (live()) emit(e, 'cancel') })
+    cv.addEventListener('pointerleave', (e) => { if (live()) emit(e, 'leave') })
+    cv.addEventListener('contextmenu', (e) => e.preventDefault())
+  }
+
+  frame(nowMs) {
+    requestAnimationFrame((ms) => this.frame(ms))
+    if (this.wrap.clientWidth < 2) { this.last = nowMs / 1000; return }
+    const t = nowMs / 1000
+    const dt = Math.min(0.05, Math.max(0.001, t - this.last))
+    this.last = t
+    const canvas = this.canvas, ctx = this.ctx, kind = this.kind
+    const W = canvas.width
+    if (W < 2) return
+    const cell = W / WORLD
+    const p = this.getProps()
+    const toPx = (v) => (v + PAD) * cell
+    canvas.style.touchAction = p.interactive ? 'none' : 'auto'
+    canvas.style.cursor = p.interactive ? p.cursor : 'default'
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, W, W)
+    this.ripples = this.ripples.filter((r) => t - r.t0 < 3.3)
+    this.water.draw(ctx, W, W, WORLD, WORLD, t, this.ripples)
+
+    // frame
+    ctx.fillStyle = 'rgba(2,16,26,.42)'
+    const pp = PAD * cell
+    ctx.fillRect(0, 0, W, pp); ctx.fillRect(0, W - pp, W, pp)
+    ctx.fillRect(0, pp, pp, W - pp * 2); ctx.fillRect(W - pp, pp, pp, W - pp * 2)
+
+    // grid
+    ctx.strokeStyle = 'rgba(205,240,255,.14)'
+    ctx.lineWidth = Math.max(1, cell * 0.015)
+    ctx.beginPath()
+    for (let i = 0; i <= SIZE; i++) {
+      ctx.moveTo(toPx(i), toPx(0)); ctx.lineTo(toPx(i), toPx(SIZE))
+      ctx.moveTo(toPx(0), toPx(i)); ctx.lineTo(toPx(SIZE), toPx(i))
+    }
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(225,250,255,.45)'
+    ctx.lineWidth = Math.max(1.5, cell * 0.03)
+    ctx.strokeRect(toPx(0), toPx(0), SIZE * cell, SIZE * cell)
+    ctx.fillStyle = 'rgba(225,246,255,.78)'
+    ctx.font = '600 ' + Math.round(cell * 0.36) + 'px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    for (let i = 0; i < SIZE; i++) {
+      ctx.fillText(LETTERS[i], toPx(i + 0.5), toPx(0) - pp * 0.5)
+      ctx.fillText(String(i + 1), toPx(0) - pp * 0.5, toPx(i + 0.5))
+    }
+
+    const board = p.board
+    const ships = board.ships
+    const visible = kind === 'own' ? ships : ships.filter((s) => s.sunk)
+
+    // oil slicks
+    for (const s of ships) {
+      if (!s.sunk) continue
+      const cx = toPx(s.c + (s.horizontal ? s.length / 2 : 0.5))
+      const cy = toPx(s.r + (s.horizontal ? 0.5 : s.length / 2))
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(s.horizontal ? 0 : Math.PI / 2)
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s.length * cell * 0.7)
+      g.addColorStop(0, 'rgba(4,8,10,.55)'); g.addColorStop(1, 'rgba(4,8,10,0)')
+      ctx.fillStyle = g; ctx.scale(1, 0.55)
+      ctx.beginPath(); ctx.arc(0, 0, s.length * cell * 0.7, 0, Math.PI * 2); ctx.fill()
+      ctx.restore()
+    }
+    for (const s of visible) {
+      drawShip(ctx, {
+        id: s.id, length: s.length, x: toPx(s.c + 0.5), y: toPx(s.r + 0.5),
+        angle: s.horizontal ? 0 : Math.PI / 2, cell, t,
+        tint: s.sunk ? 'sunk' : null, bob: !s.sunk, foam: !s.sunk,
+      })
+    }
+
+    // shot markers + persistent fires
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const st = board.shots[r][c]
+        if (!st) continue
+        const cx = toPx(c + 0.5), cy = toPx(r + 0.5)
+        if (st === 'miss') {
+          const pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + r * 1.3 + c)
+          ctx.strokeStyle = 'rgba(235,252,255,' + (0.4 + pulse * 0.2) + ')'
+          ctx.lineWidth = Math.max(1.5, cell * 0.04)
+          ctx.beginPath(); ctx.arc(cx, cy, cell * (0.2 + pulse * 0.04), 0, Math.PI * 2); ctx.stroke()
+          ctx.fillStyle = 'rgba(235,252,255,.6)'
+          ctx.beginPath(); ctx.arc(cx, cy, cell * 0.05, 0, Math.PI * 2); ctx.fill()
+        } else {
+          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cell * 0.5)
+          g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+          ctx.fillStyle = g
+          ctx.beginPath(); ctx.arc(cx, cy, cell * 0.5, 0, Math.PI * 2); ctx.fill()
+          if (st === 'hit') {
+            const k = cell * 0.13
+            ctx.strokeStyle = 'rgba(255,90,70,.95)'; ctx.lineWidth = Math.max(2, cell * 0.06); ctx.lineCap = 'round'
+            ctx.beginPath()
+            ctx.moveTo(cx - k, cy - k); ctx.lineTo(cx + k, cy + k)
+            ctx.moveTo(cx + k, cy - k); ctx.lineTo(cx - k, cy + k)
+            ctx.stroke()
+            if (Math.random() < dt * 16) this.fx.flame(c + 0.5, r + 0.5)
+            if (Math.random() < dt * 2.5) this.fx.smoke(c + 0.5, r + 0.5, 0.35)
+          } else {
+            if (Math.random() < dt * 4) this.fx.flame(c + 0.5, r + 0.5)
+            if (Math.random() < dt * 2.2) this.fx.smoke(c + 0.5, r + 0.5, 0.8)
+          }
+        }
+      }
+    }
+
+    // placement ghost
+    const gh = p.ghost, G = this.gh
+    if (gh) {
+      const tx = gh.c + 0.5, ty = gh.r + 0.5, ta = gh.horizontal ? 0 : Math.PI / 2
+      if (!G.active) { G.x = tx; G.y = ty; G.a = ta; G.active = true }
+      else {
+        const k = 1 - Math.exp(-dt * 24)
+        G.x += (tx - G.x) * k; G.y += (ty - G.y) * k
+        G.a += (ta - G.a) * (1 - Math.exp(-dt * 20))
+      }
+      const col = gh.valid ? '90,240,160' : '255,90,90'
+      for (let i = 0; i < gh.length; i++) {
+        const cr = gh.horizontal ? gh.r : gh.r + i
+        const cc = gh.horizontal ? gh.c + i : gh.c
+        ctx.fillStyle = 'rgba(' + col + ',.2)'
+        ctx.fillRect(toPx(cc) + 1, toPx(cr) + 1, cell - 2, cell - 2)
+        ctx.strokeStyle = 'rgba(' + col + ',.85)'; ctx.lineWidth = Math.max(1.5, cell * 0.03)
+        ctx.strokeRect(toPx(cc) + 2, toPx(cr) + 2, cell - 4, cell - 4)
+      }
+      drawShip(ctx, {
+        id: gh.id, length: gh.length, x: toPx(G.x), y: toPx(G.y), angle: G.a, cell, t,
+        alpha: 0.95, tint: gh.valid ? 'valid' : 'invalid', lifted: gh.lifted, bob: true,
+      })
+      if (gh.finger) {
+        const hx = toPx(gh.c + (gh.horizontal ? gh.length / 2 : 0.5))
+        const hy = toPx(gh.r + (gh.horizontal ? 0.5 : gh.length / 2))
+        drawFinger(ctx, toPx(gh.finger.fc), toPx(gh.finger.fr), hx, hy, cell, t)
+      }
+    } else G.active = false
+
+    // particles
+    this.fx.update(dt)
+    this.fx.draw(ctx, PAD, PAD, cell)
+
+    // shells in flight
+    for (const s of this.shells) {
+      const prog = clamp01((t - s.t0) / s.dur)
+      const tx = s.c + 0.5, ty = s.r + 0.5
+      const sx = SIZE / 2 + (tx - SIZE / 2) * 0.35
+      const sy = s.from === 'top' ? -2.8 : SIZE + 2.8
+      const gx = sx + (tx - sx) * prog, gy = sy + (ty - sy) * prog
+      const alt = Math.sin(Math.PI * prog)
+      const hx = gx, hy = gy - alt * 2.6
+      ctx.strokeStyle = 'rgba(255,110,80,' + (0.35 + 0.5 * prog) + ')'
+      ctx.lineWidth = Math.max(1.5, cell * 0.04)
+      ctx.beginPath(); ctx.arc(toPx(tx), toPx(ty), cell * (0.75 - 0.4 * prog), 0, Math.PI * 2); ctx.stroke()
+      ctx.fillStyle = 'rgba(0,10,16,.35)'
+      ctx.beginPath(); ctx.ellipse(toPx(gx), toPx(gy), cell * 0.13, cell * 0.09, 0, 0, Math.PI * 2); ctx.fill()
+      const sc = 0.65 + alt * 0.7
+      const gg = ctx.createRadialGradient(toPx(hx), toPx(hy), 0, toPx(hx), toPx(hy), cell * 0.32 * sc)
+      gg.addColorStop(0, 'rgba(255,240,190,.95)'); gg.addColorStop(0.4, 'rgba(255,170,70,.45)'); gg.addColorStop(1, 'rgba(255,120,40,0)')
+      ctx.fillStyle = gg
+      ctx.beginPath(); ctx.arc(toPx(hx), toPx(hy), cell * 0.32 * sc, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#fff6d6'
+      ctx.beginPath(); ctx.arc(toPx(hx), toPx(hy), cell * 0.07 * sc, 0, Math.PI * 2); ctx.fill()
+      if (t - s.lastTrail > 0.016) { this.fx.trail(hx, hy); s.lastTrail = t }
+    }
+    const landed = this.shells.filter((s) => t - s.t0 >= s.dur)
+    if (landed.length) {
+      this.shells = this.shells.filter((s) => t - s.t0 < s.dur)
+      landed.forEach((s) => s.onLand())
+    }
+
+    // targeting reticle
+    const rt = p.reticle
+    if (rt) {
+      const cx = toPx(rt.c + 0.5), cy = toPx(rt.r + 0.5)
+      const base = rt.valid ? '255,214,102' : '150,170,180'
+      ctx.fillStyle = rt.valid ? 'rgba(255,80,60,.16)' : 'rgba(150,170,180,.18)'
+      ctx.fillRect(toPx(rt.c), toPx(rt.r), cell, cell)
+      ctx.strokeStyle = 'rgba(' + base + ',.22)'; ctx.lineWidth = Math.max(1, cell * 0.02)
+      ctx.beginPath()
+      ctx.moveTo(toPx(0), cy); ctx.lineTo(toPx(SIZE), cy)
+      ctx.moveTo(cx, toPx(0)); ctx.lineTo(cx, toPx(SIZE))
+      ctx.stroke()
+      const bl = cell * 0.26
+      const x0 = toPx(rt.c) + 2, y0 = toPx(rt.r) + 2, x1 = toPx(rt.c + 1) - 2, y1 = toPx(rt.r + 1) - 2
+      ctx.strokeStyle = 'rgba(' + base + ',.95)'; ctx.lineWidth = Math.max(2, cell * 0.05); ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(x0, y0 + bl); ctx.lineTo(x0, y0); ctx.lineTo(x0 + bl, y0)
+      ctx.moveTo(x1 - bl, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y0 + bl)
+      ctx.moveTo(x1, y1 - bl); ctx.lineTo(x1, y1); ctx.lineTo(x1 - bl, y1)
+      ctx.moveTo(x0 + bl, y1); ctx.lineTo(x0, y1); ctx.lineTo(x0, y1 - bl)
+      ctx.stroke()
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 1.4)
+      ctx.setLineDash([cell * 0.12, cell * 0.09]); ctx.lineWidth = Math.max(1.5, cell * 0.035)
+      ctx.beginPath(); ctx.arc(0, 0, cell * 0.36, 0, Math.PI * 2); ctx.stroke()
+      ctx.restore()
+      ctx.beginPath()
+      for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        ctx.moveTo(cx + d[0] * cell * 0.12, cy + d[1] * cell * 0.12)
+        ctx.lineTo(cx + d[0] * cell * 0.3, cy + d[1] * cell * 0.3)
+      }
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(' + base + ',1)'
+      ctx.beginPath(); ctx.arc(cx, cy, cell * 0.035, 0, Math.PI * 2); ctx.fill()
+      if (rt.finger) drawFinger(ctx, toPx(rt.finger.fc), toPx(rt.finger.fr), cx, cy, cell, t)
+    }
+
+    // radar sweep
+    if (p.radar && typeof ctx.createConicGradient === 'function') {
+      const cxr = toPx(SIZE / 2)
+      const g = ctx.createConicGradient(t * 0.9, cxr, cxr)
+      g.addColorStop(0, 'rgba(110,255,190,.2)'); g.addColorStop(0.14, 'rgba(110,255,190,0)'); g.addColorStop(1, 'rgba(110,255,190,0)')
+      ctx.save()
+      ctx.beginPath(); ctx.rect(toPx(0), toPx(0), SIZE * cell, SIZE * cell); ctx.clip()
+      ctx.fillStyle = g; ctx.fillRect(toPx(0), toPx(0), SIZE * cell, SIZE * cell)
+      ctx.restore()
+    }
+
+    // vignette
+    const vg = ctx.createRadialGradient(W / 2, W / 2, W * 0.35, W / 2, W / 2, W * 0.75)
+    vg.addColorStop(0, 'rgba(0,10,18,0)'); vg.addColorStop(1, 'rgba(0,10,18,.5)')
+    ctx.fillStyle = vg
+    ctx.fillRect(0, 0, W, W)
+
+    // screen shake
+    if (this.shake_ > 0.1) {
+      const m = this.shake_
+      canvas.style.transform = 'translate(' + ((Math.random() - 0.5) * m).toFixed(1) + 'px,' + ((Math.random() - 0.5) * m).toFixed(1) + 'px)'
+      this.shake_ *= Math.exp(-dt * 8)
+    } else if (this.shake_ !== 0) {
+      this.shake_ = 0
+      canvas.style.transform = ''
+    }
+  }
+}
+
+/* =========================================================================
+   Menu backdrop: ships cruising over live water
+   ========================================================================= */
+function startBackdrop() {
+  const canvas = $('backdrop')
+  const ctx = canvas.getContext('2d')
+  const water = new Water(130)
+  const lanes = FLEET.map((f, i) => ({
+    id: f.id, length: f.length,
+    y: 0.12 + (i / FLEET.length) * 0.82 + (i % 2) * 0.03,
+    speed: (i % 2 ? -1 : 1) * (0.35 + i * 0.07),
+    offset: i * 7.3,
+  }))
+  const resize = () => {
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1)
+    canvas.width = Math.round(window.innerWidth * dpr)
+    canvas.height = Math.round(window.innerHeight * dpr)
+  }
+  resize()
+  window.addEventListener('resize', resize)
+  const frame = (ms) => {
+    requestAnimationFrame(frame)
+    if ($('menu').hidden) return
+    const t = ms / 1000
+    const W = canvas.width, H = canvas.height
+    const cell = (44 * W) / window.innerWidth
+    const worldW = W / cell, worldH = H / cell
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    water.draw(ctx, W, H, worldW, worldH, t, [])
+    const span = worldW + 14
+    for (const s of lanes) {
+      const dir = s.speed > 0 ? 1 : -1
+      const travel = (t * Math.abs(s.speed) + s.offset) % span
+      const x = dir > 0 ? travel - 7 : worldW + 7 - travel
+      ctx.globalAlpha = 0.9
+      drawShip(ctx, { id: s.id, length: s.length, x: x * cell, y: s.y * H, angle: dir > 0 ? 0 : Math.PI, cell, t, bob: true })
+      ctx.globalAlpha = 1
+    }
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75)
+    g.addColorStop(0, 'rgba(2,12,20,.35)'); g.addColorStop(1, 'rgba(2,12,20,.9)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+  }
+  requestAnimationFrame(frame)
+}
+
+/* =========================================================================
+   Game controller
+   ========================================================================= */
+const AMMO_START = 5, AMMO_PER_CORRECT = 3, AMMO_PER_WRONG = 1, TOUCH_LIFT = 1.9
+
+const G = {
+  phase: 'menu', level: 'easy', player: createBoard(), enemy: createBoard(),
+  sel: 'carrier', horizontal: true, ghost: null, reticle: null,
+  turn: 'player', busy: false, ammo: AMMO_START, quiz: null, hud: '',
+  banners: { own: null, enemy: null }, view: 'own', won: false, shots: 0, hits: 0, muted: false,
+}
+let runId = 0, timers = [], drag = null, aimDown = false, lastPtr = null
+let aiMem = createAiMemory()
+let questions = DEFAULT_QUESTIONS, quizId = 'battleship-default', quizIdx = 0
+let answers = [], bannerSeq = 0
+
+function later(fn, ms) {
+  const run = runId
+  timers.push(setTimeout(() => { if (run === runId) fn() }, ms))
+}
+function resetTimers() { runId++; timers.forEach(clearTimeout); timers = [] }
+function set(patch) { Object.assign(G, patch); render() }
+function aim(patch) { Object.assign(G, patch) }
+
+window.addEventListener('message', (e) => {
+  const d = e.data
+  if (!d || d.type !== 'quizConfig' || !Array.isArray(d.questions)) return
+  const valid = d.questions.filter((q) => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length > 1 && typeof q.correct === 'number')
+  if (valid.length) { questions = valid; if (typeof d.quizId === 'string') quizId = d.quizId }
+})
+
+/* ---- DOM scaffolding ---- */
+function buildPanel(kind, title, slot) {
+  const s = document.createElement('section')
+  s.className = 'panel ' + kind
+  s.setAttribute('aria-label', title)
+  s.innerHTML =
+    '<div class="panel-head"><h2><span class="dot"></span>' + title + '</h2><span class="cap"></span></div>' +
+    '<div class="board-wrap"><canvas role="img" aria-label="' + title + ': 10 by 10 grid, top-down view"></canvas><div class="banner-layer" aria-hidden="true"></div></div>' +
+    '<ul class="fleetlist" aria-label="' + title + ' fleet status"></ul>'
+  slot.appendChild(s)
+  const list = s.querySelector('.fleetlist')
+  const icons = {}
+  FLEET.forEach((def) => {
+    const li = document.createElement('li')
+    const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true')
+    drawShipIcon(cv, def.id, def.length, 9, false)
+    const sp = document.createElement('span'); sp.textContent = def.name
+    li.append(cv, sp); list.appendChild(li)
+    icons[def.id] = { li, cv, sunk: false }
+  })
+  return {
+    el: s, dot: s.querySelector('.dot'), cap: s.querySelector('.cap'),
+    wrap: s.querySelector('.board-wrap'), canvas: s.querySelector('canvas'),
+    layer: s.querySelector('.banner-layer'), list, icons, bannerId: 0,
+  }
+}
+const ownP = buildPanel('own', 'Your fleet', $('ownSlot'))
+const enemyP = buildPanel('enemy', 'Enemy waters', $('enemySlot'))
+
+const ownView = new BoardView(ownP.wrap, ownP.canvas, 'own', () => ({
+  board: G.player, ghost: G.phase === 'placement' ? G.ghost : null, reticle: null,
+  interactive: G.phase === 'placement', cursor: G.ghost || drag ? 'grabbing' : 'grab', radar: false,
+}))
+const enemyView = new BoardView(enemyP.wrap, enemyP.canvas, 'enemy', () => ({
+  board: G.enemy, ghost: null, reticle: G.reticle,
+  interactive: G.phase === 'combat', cursor: 'crosshair', radar: true,
+}))
+
+// icons
+$('logoIcon').innerHTML = icon('anchor')
+$('zapIcon').innerHTML = icon('zap')
+$('homeIcon').innerHTML = icon('home')
+$('resetIcon').innerHTML = icon('reset')
+$('rotIcon').innerHTML = icon('rotate')
+$('shufIcon').innerHTML = icon('shuffle')
+$('trashIcon').innerHTML = icon('trash')
+$('tips').innerHTML =
+  '<li>' + icon('move') + '<span>Drag ships onto the grid. On touch, the ship floats above your finger so you can always see where it lands.</span></li>' +
+  '<li>' + icon('cross') + '<span>Aim by touching or hovering, then release to fire. Slide off the board to cancel.</span></li>' +
+  '<li>' + icon('zap') + '<span>You start with 5 shells and every shot costs 1. Run dry and answer a question to reload.</span></li>'
+LEVELS.forEach((l) => {
+  const b = document.createElement('button')
+  b.type = 'button'; b.className = 'level ' + l.id
+  b.innerHTML = '<b>' + l.name + '</b><span>' + l.desc + '</span>'
+  b.addEventListener('click', () => startPlacement(l.id))
+  $('levels').appendChild(b)
+})
+
+// tray
+const trayBtns = {}
+FLEET.forEach((def) => {
+  const li = document.createElement('li')
+  const b = document.createElement('button')
+  b.type = 'button'; b.className = 'ship-btn'
+  const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true')
+  drawShipIcon(cv, def.id, def.length, 14, false)
+  const txt = document.createElement('span'); txt.className = 'txt'
+  txt.innerHTML = '<b>' + def.name + '</b><small></small>'
+  const ok = document.createElement('span'); ok.className = 'ok'; ok.innerHTML = icon('check')
+  b.append(cv, txt, ok)
+  b.addEventListener('click', () => selectShip(def.id))
+  b.addEventListener('pointerdown', (e) => { if (!b.disabled) onTrayPointerDown(def.id, e) })
+  li.appendChild(b); $('tray').appendChild(li)
+  trayBtns[def.id] = { b, small: txt.querySelector('small') }
+})
+
+/* ---- render ---- */
+let pipKey = '', quizEl = null, resultEl = null
+function render() {
+  const menu = G.phase === 'menu'
+  $('menu').hidden = !menu
+  $('game').hidden = menu
+  if (menu) { closeModals(); return }
+
+  const game = $('game')
+  game.dataset.phase = G.phase
+  game.dataset.view = G.view
+
+  $('levelBadge').textContent = (LEVELS.find((l) => l.id === G.level) || {}).name || ''
+  const slots = Math.max(AMMO_START, G.ammo)
+  const key = slots + ':' + G.ammo
+  if (key !== pipKey) {
+    pipKey = key
+    $('pips').innerHTML = Array.from({ length: slots }, (_, i) => '<span class="pip' + (i < G.ammo ? ' on' : '') + '"></span>').join('')
+  }
+  $('ammoNum').textContent = G.ammo
+  $('ammo').setAttribute('aria-label', 'Ammo: ' + G.ammo + ' shells')
+
+  const inPlacement = G.phase === 'placement'
+  const myTurn = G.phase === 'combat' && G.turn === 'player' && !G.busy && !G.quiz
+  const hud = $('hud')
+  hud.textContent = G.hud
+  hud.className = myTurn ? 'mine' : G.turn === 'enemy' && G.phase === 'combat' ? 'theirs' : ''
+  $('reloadBtn').hidden = !(G.phase === 'combat' && G.ammo <= 0 && !G.quiz && myTurn)
+
+  document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === G.view)))
+
+  $('muteBtn').innerHTML = icon(G.muted ? 'mute' : 'vol')
+  $('muteBtn').setAttribute('aria-label', G.muted ? 'Unmute sound' : 'Mute sound')
+
+  // panels
+  ownP.cap.textContent = inPlacement ? G.player.ships.length + '/' + FLEET.length + ' deployed' : 'Top-down view'
+  ownP.dot.classList.toggle('on', G.turn === 'enemy' && G.phase === 'combat')
+  ownP.list.hidden = inPlacement
+  enemyP.cap.textContent = myTurn ? 'Release to fire' : 'Radar active'
+  enemyP.dot.classList.toggle('on', myTurn)
+  syncFleet(ownP, G.player)
+  syncFleet(enemyP, G.enemy)
+  syncBanner(ownP, G.banners.own)
+  syncBanner(enemyP, G.banners.enemy)
+
+  // placement bar
+  if (inPlacement) {
+    const placedCount = G.player.ships.length
+    FLEET.forEach((def) => {
+      const placed = G.player.ships.some((s) => s.id === def.id)
+      const t = trayBtns[def.id]
+      t.b.disabled = placed
+      t.b.classList.toggle('sel', G.sel === def.id && !placed)
+      t.b.setAttribute('aria-pressed', String(G.sel === def.id && !placed))
+      t.small.textContent = placed ? 'Deployed' : def.length + ' cells'
+    })
+    $('clearBtn').disabled = placedCount === 0
+    const ready = placedCount === FLEET.length
+    $('readyBtn').disabled = !ready
+    $('readyBtn').textContent = ready ? 'Open fire' : placedCount + '/' + FLEET.length + ' placed'
+    $('rotateBtn').setAttribute('aria-label', 'Rotate, currently ' + (G.horizontal ? 'horizontal' : 'vertical'))
+  }
+
+  // modals
+  if (G.quiz && !quizEl) showQuiz()
+  if (!G.quiz && quizEl) { quizEl.remove(); quizEl = null }
+  if (G.phase === 'result' && !resultEl) showResult()
+  if (G.phase !== 'result' && resultEl) { resultEl.remove(); resultEl = null }
+}
+function closeModals() {
+  if (quizEl) { quizEl.remove(); quizEl = null }
+  if (resultEl) { resultEl.remove(); resultEl = null }
+}
+function syncFleet(panel, board) {
+  FLEET.forEach((def) => {
+    const ship = board.ships.find((s) => s.id === def.id)
+    const sunk = !!(ship && ship.sunk)
+    const ic = panel.icons[def.id]
+    if (ic.sunk !== sunk) {
+      ic.sunk = sunk
+      ic.li.classList.toggle('sunk', sunk)
+      drawShipIcon(ic.cv, def.id, def.length, 9, sunk)
+    }
+  })
+}
+function syncBanner(panel, banner) {
+  const id = banner ? banner.id : 0
+  if (id === panel.bannerId) return
+  panel.bannerId = id
+  panel.layer.innerHTML = ''
+  if (banner) {
+    const s = document.createElement('span')
+    s.className = 'banner ' + banner.tone
+    s.textContent = banner.text
+    panel.layer.appendChild(s)
+  }
+}
+
+/* ---- quiz + result modals ---- */
+function showQuiz() {
+  const q = G.quiz.q
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.innerHTML =
+    '<div class="modal quiz" role="dialog" aria-modal="true" aria-labelledby="quiz-title">' +
+    '<p class="eyebrow">Out of ammo \u00b7 Reload</p><h2 id="quiz-title"></h2>' +
+    '<p class="meta">Correct: +' + AMMO_PER_CORRECT + ' shells \u00b7 Wrong: +' + AMMO_PER_WRONG + '</p>' +
+    '<div class="opts"></div><p class="qmsg" aria-live="polite"></p></div>'
+  ov.querySelector('h2').textContent = q.question
+  const opts = ov.querySelector('.opts'), msg = ov.querySelector('.qmsg')
+  const btns = q.options.map((text, i) => {
+    const b = document.createElement('button')
+    b.type = 'button'; b.className = 'opt'
+    const sp = document.createElement('span'); sp.textContent = text
+    const mark = document.createElement('span')
+    b.append(sp, mark)
+    b.addEventListener('click', () => {
+      if (btns.some((x) => x.disabled)) return
+      btns.forEach((x) => (x.disabled = true))
+      const ok = i === q.correct
+      if (ok) sfx.correct(); else sfx.wrong()
+      btns[q.correct].classList.add('right'); btns[q.correct].lastChild.innerHTML = icon('ok')
+      if (!ok) { b.classList.add('wrong'); mark.innerHTML = icon('bad') }
+      msg.textContent = ok ? 'Locked and loaded \u2014 +' + AMMO_PER_CORRECT + ' shells!' : 'Not quite \u2014 +' + AMMO_PER_WRONG + ' shell.'
+      setTimeout(() => resolveQuiz(ok), 1500)
+    })
+    opts.appendChild(b)
+    return b
+  })
+  $('modalRoot').appendChild(ov)
+  quizEl = ov
+  btns[0].focus()
+}
+function showResult() {
+  const acc = G.shots ? Math.round((G.hits / G.shots) * 100) : 0
+  const ov = document.createElement('div')
+  ov.className = 'overlay'
+  ov.innerHTML =
+    '<div class="modal result" role="dialog" aria-modal="true" aria-labelledby="result-title">' +
+    '<p class="eyebrow ' + (G.won ? 'win' : 'lose') + '">' + (G.won ? 'Mission complete' : 'Mission failed') + '</p>' +
+    '<h2 id="result-title">' + (G.won ? 'Victory!' : 'Defeat') + '</h2>' +
+    '<p class="m">' + (G.won ? 'You sank the enemy fleet.' : 'Your fleet has been destroyed.') + '</p>' +
+    '<dl class="stats"><div><dt>Shots</dt><dd>' + G.shots + '</dd></div><div><dt>Hits</dt><dd>' + G.hits + '</dd></div><div><dt>Accuracy</dt><dd>' + acc + '%</dd></div></dl>' +
+    '<div class="rbtns"><button type="button" class="gold" id="again">Play again</button><button type="button" class="out" id="tomenu">Change level</button></div></div>'
+  ov.querySelector('#again').addEventListener('click', () => startPlacement())
+  ov.querySelector('#tomenu').addEventListener('click', toMenu)
+  $('modalRoot').appendChild(ov)
+  resultEl = ov
+  ov.querySelector('#again').focus()
+}
+
+/* ---- lifecycle ---- */
+function flash(side, text, tone) {
+  const id = ++bannerSeq
+  set({ banners: { ...G.banners, [side]: { id, text, tone } } })
+  later(() => {
+    if (G.banners[side] && G.banners[side].id === id) set({ banners: { ...G.banners, [side]: null } })
+  }, 1500)
+}
+function startPlacement(level) {
+  resetTimers()
+  drag = null; aimDown = false
+  aiMem = createAiMemory(); answers = []
+  quizIdx = Math.floor(Math.random() * questions.length)
+  sfx.unlock()
+  set({
+    phase: 'placement', level: level || G.level, player: createBoard(), enemy: createBoard(),
+    sel: 'carrier', horizontal: true, ghost: null, reticle: null, turn: 'player', busy: false,
+    ammo: AMMO_START, quiz: null, hud: 'Deploy your fleet', banners: { own: null, enemy: null },
+    view: 'own', won: false, shots: 0, hits: 0,
+  })
+}
+function toMenu() {
+  resetTimers()
+  set({ phase: 'menu', quiz: null, ghost: null, reticle: null })
+}
+function startCombat() {
+  if (G.player.ships.length !== FLEET.length) return
+  const ships = autoPlaceFleet()
+  if (!ships) { set({ hud: 'Could not place enemy fleet \u2014 try again' }); return }
+  sfx.ping()
+  set({
+    phase: 'combat', enemy: createBoard(ships), player: { ...G.player, shots: emptyShots() },
+    turn: 'player', busy: false, sel: null, ghost: null, reticle: null, view: 'enemy',
+    hud: 'Your turn \u2014 aim at enemy waters, release to fire',
+  })
+}
+function endGame(won) {
+  if (won) sfx.win(); else sfx.lose()
+  set({ phase: 'result', won, busy: false, reticle: null })
+  try {
+    window.parent.postMessage({ type: 'gameEnd', game: 'battleship', quizId, won, score: won ? 100 : 0, answers }, '*')
+  } catch (e) { /* not embedded */ }
+}
+
+/* ---- quiz flow ---- */
+function openQuiz() {
+  if (G.quiz || G.phase !== 'combat') return
+  const idx = quizIdx % questions.length
+  quizIdx++
+  sfx.ping()
+  set({ quiz: { q: questions[idx], idx }, reticle: null, hud: 'Out of ammo \u2014 answer to reload' })
+}
+function resolveQuiz(correct) {
+  if (!G.quiz) return
+  answers.push({ qIdx: G.quiz.idx, correct })
+  const gain = correct ? AMMO_PER_CORRECT : AMMO_PER_WRONG
+  set({ quiz: null, ammo: G.ammo + gain, hud: 'Reloaded +' + gain + (correct ? ' shells' : ' shell') + ' \u2014 your turn' })
+}
+
+/* ---- combat flow ---- */
+function backToPlayer() {
+  set({ turn: 'player', busy: false, view: 'enemy', hud: 'Your turn \u2014 aim at enemy waters, release to fire' })
+  if (G.ammo <= 0) later(openQuiz, 600)
+}
+function resolveAiShot(cell) {
+  const out = applyShot(G.player, cell.r, cell.c)
+  if (!out) { backToPlayer(); return }
+  ownView.impact(cell.r, cell.c, out.result, out.ship)
+  aiMem = updateAiMemory(G.level, aiMem, out.board.shots, cell.r, cell.c, out.result)
+  const at = coord(cell.r, cell.c)
+  if (out.result === 'miss') { set({ player: out.board, hud: 'Enemy missed at ' + at }); flash('own', 'Missed', 'miss') }
+  else if (out.result === 'hit') { set({ player: out.board, hud: 'Enemy hit your ' + out.ship.name + ' at ' + at + '!' }); flash('own', 'Hit!', 'hit') }
+  else { set({ player: out.board, hud: 'Enemy sank your ' + out.ship.name + '!' }); flash('own', out.ship.name + ' lost', 'sunk') }
+  if (fleetSunk(out.board.ships)) { later(() => endGame(false), 1900); return }
+  later(backToPlayer, out.result === 'sunk' ? 1800 : 1200)
+}
+function enemyTurn() {
+  const res = chooseAiShot(G.level, G.player.shots, aiMem)
+  aiMem = res.mem
+  const cell = res.cell
+  if (!cell) { backToPlayer(); return }
+  set({ hud: 'Enemy is targeting\u2026' })
+  later(() => ownView.launch(cell.r, cell.c, 900, 'top', () => resolveAiShot(cell)), 700)
+}
+function resolvePlayerShot(r, c) {
+  const out = applyShot(G.enemy, r, c)
+  if (!out) { set({ busy: false }); return }
+  enemyView.impact(r, c, out.result, out.ship)
+  const at = coord(r, c)
+  const hits = G.hits + (out.result === 'miss' ? 0 : 1)
+  if (out.result === 'miss') { set({ enemy: out.board, hits, hud: 'Splash \u2014 nothing at ' + at }); flash('enemy', 'Miss', 'miss') }
+  else if (out.result === 'hit') { set({ enemy: out.board, hits, hud: 'Direct hit at ' + at + '!' }); flash('enemy', 'Direct hit!', 'hit') }
+  else { set({ enemy: out.board, hits, hud: 'You sank the enemy ' + out.ship.name + '!' }); flash('enemy', 'Sunk!', 'sunk') }
+  if (fleetSunk(out.board.ships)) { later(() => endGame(true), 2000); return }
+  later(() => { set({ turn: 'enemy', view: 'own' }); enemyTurn() }, out.result === 'sunk' ? 1900 : 1300)
+}
+function firePlayer(r, c) {
+  if (G.phase !== 'combat' || G.turn !== 'player' || G.busy || G.quiz) return
+  if (G.enemy.shots[r][c] !== null) return
+  if (G.ammo <= 0) { openQuiz(); return }
+  set({ ammo: G.ammo - 1, shots: G.shots + 1, busy: true, reticle: null, hud: 'Firing at ' + coord(r, c) + '\u2026' })
+  enemyView.launch(r, c, 850, 'bottom', () => resolvePlayerShot(r, c))
+}
+
+/* ---- placement ---- */
+function ghostFor(info, id, horizontal, lifted) {
+  if (info.fr < -1.4 || info.fr > SIZE + 1.4 || info.fc < -1.4 || info.fc > SIZE + 1.4) return null
+  const def = FLEET.find((f) => f.id === id)
+  if (!def) return null
+  const L = def.length
+  const touch = info.pointerType === 'touch'
+  const lift = touch ? TOUCH_LIFT + (horizontal ? 0 : L / 2 - 0.5) : 0
+  const fr = info.fr - lift
+  let r, c
+  if (horizontal) {
+    c = clamp(Math.round(info.fc - L / 2), 0, SIZE - L)
+    r = clamp(Math.floor(fr), 0, SIZE - 1)
+  } else {
+    r = clamp(Math.round(fr - L / 2), 0, SIZE - L)
+    c = clamp(Math.floor(info.fc), 0, SIZE - 1)
+  }
+  const valid = canPlace(G.player.ships, L, r, c, horizontal)
+  return { id, length: L, r, c, horizontal, valid, lifted, finger: touch && lifted ? { fr: info.fr, fc: info.fc } : null }
+}
+const nextUnplaced = (ships) => { const f = FLEET.find((x) => !ships.some((s) => s.id === x.id)); return f ? f.id : null }
+function commitPlayerShips(ships) { set({ player: { ...G.player, ships } }) }
+function deploy(id, r, c, horizontal) {
+  const def = FLEET.find((f) => f.id === id)
+  if (!def) return
+  const ships = placeShip(G.player.ships, def, r, c, horizontal)
+  sfx.place()
+  for (let i = 0; i < def.length; i++) ownView.ripple(horizontal ? r : r + i, horizontal ? c + i : c, 0.28)
+  const next = nextUnplaced(ships)
+  set({
+    player: { ...G.player, ships }, sel: next, ghost: null, horizontal,
+    hud: next ? 'Place your ' + FLEET.find((f) => f.id === next).name : 'Fleet ready \u2014 press Open fire',
+  })
+}
+function refreshGhost(info) {
+  const id = drag ? drag.id : G.sel
+  if (!info || !id) { if (G.ghost) aim({ ghost: null }); return }
+  const lifted = !!drag && (drag.moved || drag.touch || drag.origin !== null)
+  aim({ ghost: ghostFor(info, id, G.horizontal, lifted) })
+}
+function rotate() {
+  if (G.phase !== 'placement') return
+  sfx.rotate()
+  set({ horizontal: !G.horizontal })
+  refreshGhost(lastPtr && (drag || G.ghost) ? lastPtr : null)
+}
+function handlePlacementPointer(info) {
+  if (G.phase !== 'placement') return
+  const touch = info.pointerType === 'touch'
+  if (info.phase === 'leave') { if (!drag && G.ghost) aim({ ghost: null }); return }
+  if (info.phase === 'cancel') {
+    const d = drag
+    drag = null
+    if (d && d.origin) commitPlayerShips(G.player.ships.concat([d.origin]))
+    aim({ ghost: null })
+    return
+  }
+  lastPtr = info
+
+  if (info.phase === 'down') {
+    if (info.button === 2) { rotate(); return }
+    sfx.unlock()
+    const cr = Math.floor(info.fr), cc = Math.floor(info.fc)
+    const under = inBounds(cr, cc) ? shipAt(G.player.ships, cr, cc) : undefined
+    let id = G.sel, origin = null
+    if (under) {
+      origin = under; id = under.id
+      sfx.lift()
+      set({ player: { ...G.player, ships: G.player.ships.filter((s) => s.id !== under.id) }, sel: id, horizontal: under.horizontal })
+    }
+    if (!id) return
+    drag = { id, origin, sx: info.clientX, sy: info.clientY, moved: false, touch }
+    refreshGhost(info)
+    return
+  }
+
+  const d = drag
+  if (info.phase === 'move') {
+    if (d) {
+      if (!d.moved && Math.hypot(info.clientX - d.sx, info.clientY - d.sy) > 6) d.moved = true
+      refreshGhost(info)
+    } else if (!touch) refreshGhost(info)
+    return
+  }
+
+  // up
+  drag = null
+  if (!d) return
+  const ghost = ghostFor(info, d.id, G.horizontal, true)
+
+  if (d.origin && !d.moved) {
+    const o = d.origin
+    const flip = !o.horizontal
+    const others = G.player.ships
+    const tries = [{ r: o.r, c: o.c }, { r: clamp(o.r, 0, SIZE - o.length), c: clamp(o.c, 0, SIZE - o.length) }]
+    const fit = tries.find((t) => canPlace(others, o.length, t.r, t.c, flip))
+    if (fit) { deploy(o.id, fit.r, fit.c, flip); sfx.rotate() }
+    else {
+      commitPlayerShips(others.concat([o]))
+      sfx.error()
+      set({ ghost: null, horizontal: o.horizontal, hud: 'No room to rotate there' })
+    }
+    return
+  }
+  if (ghost && ghost.valid) { deploy(d.id, ghost.r, ghost.c, ghost.horizontal); return }
+  if (d.origin) commitPlayerShips(G.player.ships.concat([d.origin]))
+  if (ghost) { sfx.error(); set({ ghost: null, hud: 'Ships cannot overlap \u2014 try another spot' }) }
+  else aim({ ghost: null })
+}
+function onTrayPointerDown(id, e) {
+  if (G.phase !== 'placement' || e.button === 2) return
+  set({ sel: id })
+  const mk = (phase, ev) => {
+    const p = ownView.toCell(ev.clientX, ev.clientY)
+    return { phase, fr: p.fr, fc: p.fc, clientX: ev.clientX, clientY: ev.clientY, pointerType: ev.pointerType, button: ev.button }
+  }
+  handlePlacementPointer(mk('down', e))
+  const cleanup = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    window.removeEventListener('pointercancel', cancel)
+  }
+  const move = (ev) => handlePlacementPointer(mk('move', ev))
+  const up = (ev) => { cleanup(); handlePlacementPointer(mk('up', ev)) }
+  const cancel = (ev) => { cleanup(); handlePlacementPointer(mk('cancel', ev)) }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+  window.addEventListener('pointercancel', cancel)
+}
+function selectShip(id) {
+  sfx.click()
+  set({ sel: id, hud: 'Place your ' + FLEET.find((f) => f.id === id).name })
+}
+function shuffleFleet() {
+  const ships = autoPlaceFleet()
+  if (!ships) return
+  sfx.place()
+  set({ player: { ...G.player, ships }, sel: null, ghost: null, hud: 'Fleet ready \u2014 press Open fire' })
+  ships.forEach((s) => ownView.ripple(s.r, s.c, 0.5))
+}
+function clearFleet() {
+  sfx.click()
+  set({ player: { ...G.player, ships: [] }, sel: 'carrier', ghost: null, hud: 'Deploy your fleet' })
+}
+
+/* ---- enemy aiming ---- */
+function handleEnemyPointer(info) {
+  if (G.phase !== 'combat') return
+  if (info.phase === 'leave') { if (!aimDown && G.reticle) aim({ reticle: null }); return }
+  if (info.phase === 'cancel') { aimDown = false; aim({ reticle: null }); return }
+  if (info.button === 2) return
+  const touch = info.pointerType === 'touch'
+  if (info.phase === 'down') { aimDown = true; sfx.unlock() }
+  const canAim = G.turn === 'player' && !G.busy && !G.quiz
+  if (!canAim) {
+    if (info.phase === 'up') aimDown = false
+    if (G.reticle) aim({ reticle: null })
+    return
+  }
+  const r = Math.floor(info.fr - (touch ? 2.0 : 0))
+  const c = Math.floor(info.fc)
+  const inside = inBounds(r, c) && info.fr > -1.4 && info.fr < SIZE + 1.4
+  const reticle = inside ? { r, c, valid: G.enemy.shots[r][c] === null, finger: touch && aimDown ? { fr: info.fr, fc: info.fc } : null } : null
+  if (info.phase === 'up') {
+    aimDown = false
+    aim({ reticle: null })
+    if (reticle && reticle.valid) firePlayer(r, c)
+    else if (reticle) sfx.error()
+    return
+  }
+  aim({ reticle })
+}
+
+ownView.onPointer = handlePlacementPointer
+enemyView.onPointer = handleEnemyPointer
+
+/* ---- static controls ---- */
+$('muteBtn').addEventListener('click', () => {
+  const next = !sfx.isMuted()
+  sfx.setMuted(next)
+  set({ muted: next })
+  if (!next) sfx.click()
+})
+$('levelBtn').addEventListener('click', toMenu)
+$('newBtn').addEventListener('click', () => startPlacement())
+$('reloadBtn').addEventListener('click', openQuiz)
+$('rotateBtn').addEventListener('click', rotate)
+$('shuffleBtn').addEventListener('click', shuffleFleet)
+$('clearBtn').addEventListener('click', clearFleet)
+$('readyBtn').addEventListener('click', startCombat)
+document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => set({ view: b.dataset.view })))
+window.addEventListener('keydown', (e) => {
+  if ((e.key === 'r' || e.key === 'R') && G.phase === 'placement') { e.preventDefault(); rotate() }
+})
+
+startBackdrop()
+render()
+})()
+</script>
+</body>
+</html>
