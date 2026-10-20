@@ -156,7 +156,7 @@ function showSettings() {
     if (!c.remote) Cloud.deleteClass(c.code).catch(() => {});
     classes = classes.filter(x => x.id !== c.id); activeId = classes.length ? classes[0].id : null; save(); closeModal(); render(); } };
 }
-function addPost(text) { const c = cur(); if (!text.trim()) return; c.posts.unshift({ id: Date.now(), by: 'Teacher', text: text.trim(), time: Date.now() }); save(); render(); }
+function addPost(text) { const c = cur(); if (!text.trim()) return; c.posts.unshift({ id: Date.now(), by: (Cloud.profile && Cloud.profile.displayName) || 'Teacher', text: text.trim(), time: Date.now() }); save(); render(); }
 function addAssignment() { ask('New assignment', 'Students see it under Assignments.', 'Assignment title', t => { cur().assignments.unshift({ id: Date.now(), text: t, time: Date.now() }); cur().setupDone = true; tab = 'assignments'; save(); render(); }); }
 function focusPost() { tab = 'activity'; render(); const t = $('#postBox'); if (t) t.focus(); }
 
@@ -170,7 +170,7 @@ function listHtml(items, key, empty, opts = {}) {
         ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
       </div>`;
     }
-    return `<div class="post"><div class="meta"><div class="avatar"><i class='bx bxs-user'></i></div><div><b>Teacher</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}</small></div>
+    return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bxs-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}</small></div>
       <button class="del" data-del="${key}:${i.id}" aria-label="Delete"><i class='bx bx-trash'></i></button></div><p>${esc(i.text)}</p>${extra}</div>`;
   }).join('')}</div>`;
 }
@@ -353,7 +353,7 @@ function render() {
   } else {
     let body = '';
     if (tab === 'activity') {
-      body = `<div class="card"><div class="composer"><div class="avatar"><i class='bx bxs-user'></i></div><textarea id="postBox" placeholder="Post something"></textarea></div>
+      body = `<div class="card"><div class="composer">${tAv(teacherOf(cur()))}<textarea id="postBox" placeholder="Post something"></textarea></div>
         <div class="actions"><button data-act="post"><i class='bx bx-message-rounded'></i>Create post</button><button data-act="share"><i class='bx bx-share-alt'></i>Share</button><button data-act="assign"><i class='bx bx-task'></i>Assign</button></div></div>`;
       if (!(c.posts.length && c.assignments.length)) body += `<div class="card setup"><div class="hd"><span>Set up your class</span></div>
         <div class="cards"><button data-act="code"><i class='bx bx-user-plus'></i>Invite members</button><button data-act="assign"><i class='bx bx-task'></i>Assign</button><button data-act="post"><i class='bx bx-news'></i>Create post</button></div></div>`;
@@ -417,6 +417,12 @@ $('#profileIcon').onclick = e => { e.preventDefault(); $('#profileMenu').classLi
 addEventListener('click', e => { if (!e.target.closest('.notification') && !e.target.closest('.profile')) document.querySelectorAll('.dd').forEach(d => d.classList.remove('show')); });
 
 /* ===================== Account / profile ===================== */
+// Who posted: the teacher's own profile on their device; the teacher info saved in the class for students.
+function teacherOf(c) {
+  if (c && !c.remote && Cloud.profile && Cloud.profile.role === 'teacher') return { name: Cloud.profile.displayName || 'Teacher', photo: Cloud.profile.photo || '' };
+  return (c && c.teacher) || { name: 'Teacher', photo: '' };
+}
+const tAv = (t, icon, bg) => t.photo ? `<div class="avatar"><img src="${t.photo}" alt=""></div>` : `<div class="avatar"${bg ? ` style="background:${bg}"` : ''}><i class='bx ${icon || 'bxs-user'}'></i></div>`;
 function paintAvatar() {
   const p = Cloud.profile || {};
   $('#profileIcon img').src = p.photo || ('data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" fill="#2F65C8"/><text x="36" y="49" font-size="34" font-family="Arial" font-weight="700" text-anchor="middle" fill="#fff">' + esc(((p.displayName || '?').trim().charAt(0) || '?').toUpperCase()) + '</text></svg>'));
@@ -437,7 +443,7 @@ function openProfile() {
     const name = $('#pfName').value.trim(); if (!name) return toast('Enter a display name');
     try {
       await Cloud.saveProfile({ displayName: name, photo });
-      studentIdentity.name = name; saveStudentIdentity(); paintAvatar(); closeModal(); toast('Profile saved');
+      studentIdentity.name = name; saveStudentIdentity(); paintAvatar(); cloudPublishSoon(); if (uiMode === 'teacher') render(); closeModal(); toast('Profile saved');
     } catch (er) { toast('Could not save: ' + (er.code || er.message)); }
   };
 }
@@ -640,7 +646,7 @@ function renderStudentHome(c, scores) {
   if (recentPosts.length) {
     postsBlock = `<div class="shsection">
       <h3><i class='bx bxs-message-rounded'></i> Recent posts</h3>
-      ${recentPosts.map(p => `<div class="shline"><div class="shl-icon"><i class='bx bxs-user'></i></div><div class="shl-info"><b>${esc(p.text.length > 80 ? p.text.slice(0, 80) + '…' : p.text)}</b><small>${fmt(p.time)}</small></div></div>`).join('')}
+      ${recentPosts.map(p => `<div class="shline"><div class="shl-icon">${teacherOf(c).photo ? `<img src="${teacherOf(c).photo}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover">` : "<i class='bx bxs-user'></i>"}</div><div class="shl-info"><b>${esc(p.text.length > 80 ? p.text.slice(0, 80) + '…' : p.text)}</b><small>${fmt(p.time)}</small></div></div>`).join('')}
       <button class="seeall" data-student-tab-link="posts">See posts wall</button>
     </div>`;
   } else if (!showWall) {
@@ -671,14 +677,14 @@ function renderStudentPosts(c) {
   const body = document.getElementById('studentTabBody');
   if (!(c.settings && c.settings.wallVisible !== false)) { body.innerHTML = `<div class="card"><div class="student-empty">Your teacher has hidden the posts wall for now.</div></div>`; return; }
   if (!c.posts.length) { body.innerHTML = `<div class="card"><div class="student-empty">No posts yet.</div></div>`; return; }
-  body.innerHTML = `<div class="card">${c.posts.map(p => `<div class="student-post"><div class="meta"><div class="avatar"><i class='bx bxs-user'></i></div><div><b>${esc(p.by || 'Teacher')}</b><small>${fmt(p.time)}</small></div></div><p>${esc(p.text)}</p></div>`).join('')}</div>`;
+  body.innerHTML = `<div class="card">${c.posts.map(p => `<div class="student-post"><div class="meta">${tAv(teacherOf(c))}<div><b>${esc(teacherOf(c).name)}</b><small>${fmt(p.time)}</small></div></div><p>${esc(p.text)}</p></div>`).join('')}</div>`;
 }
 
 function renderStudentAssignments(c) {
   const body = document.getElementById('studentTabBody');
   if (!c.assignments.length) { body.innerHTML = `<div class="card"><div class="student-empty">No assignments yet. Check back soon!</div></div>`; return; }
   body.innerHTML = `<div class="card">${c.assignments.map(a => `<div class="student-post">
-    <div class="meta"><div class="avatar" style="background:#2F65C8"><i class='bx bxs-task'></i></div><div><b>Assignment</b><small>${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
+    <div class="meta">${tAv(teacherOf(c), 'bxs-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
     <p>${esc(a.text)}</p>
     ${a.kind === 'quiz' && a.quizId ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       ${gameBtns('data-student-play', a.quizId)}
@@ -1143,7 +1149,7 @@ function applyRemoteClass(d) {
   let c = classes.find(x => x.id === d.id);
   if (c && !c.remote) return c;           // this device is the teacher's own — keep its copy
   if (!c) { c = { students: [], opened: Date.now() }; classes.push(c); }
-  Object.assign(c, { id: d.id, name: d.name, code: d.code, created: d.created, settings: d.settings || {}, posts: d.posts || [], shared: d.shared || [], assignments: d.assignments || [], remote: true });
+  Object.assign(c, { id: d.id, name: d.name, code: d.code, created: d.created, settings: d.settings || {}, posts: d.posts || [], shared: d.shared || [], assignments: d.assignments || [], teacher: d.teacher || null, remote: true });
   const ids = new Set((d.qsets || []).map(q => q.id));
   qsets = qsets.filter(q => q._remote !== d.code || ids.has(q.id));
   (d.qsets || []).forEach(q => { const i = qsets.findIndex(x => x.id === q.id); const nq = { ...q, _remote: d.code }; if (i < 0) qsets.push(nq); else if (qsets[i]._remote) qsets[i] = nq; });

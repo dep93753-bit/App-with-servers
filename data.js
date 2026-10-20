@@ -55,6 +55,7 @@ window.Cloud = (function () {
     const u = auth.currentUser;
     await userRef(u.uid).set(clean(p), { merge: true });
     api.profile = { ...(api.profile || {}), ...p };
+    cacheProfile(u.uid, api.profile);
     if (p.displayName) u.updateProfile({ displayName: p.displayName }).catch(() => {});
   };
   api.finishSetup = () => boot(auth.currentUser, api.profile);
@@ -81,15 +82,32 @@ window.Cloud = (function () {
     resolveReady(true); Gate.hide(); startApp();
   }
 
+  // The profile is also kept on this device, so a slow or failed network read can never be mistaken for "no account".
+  const cacheProfile = (uid, p) => { try { L.setItem('adminprofile_' + uid, JSON.stringify(p)); } catch (e) {} };
+  const cachedProfile = uid => { try { return JSON.parse(L.getItem('adminprofile_' + uid) || 'null'); } catch (e) { return null; } };
+  async function loadProfile(uid) {                 // {ok:true, prof|null} or {ok:false, err}; retries a few times
+    let err;
+    for (let i = 0; i < 3; i++) {
+      try { const s = await userRef(uid).get(); return { ok: true, prof: s.exists ? s.data() : null }; }
+      catch (e) { err = e; if (i < 2) await new Promise(r => setTimeout(r, 1500)); }
+    }
+    return { ok: false, err };
+  }
+  async function enter(user) {
+    if (started) return;
+    const r = await loadProfile(user.uid);
+    let prof = r.ok ? r.prof : cachedProfile(user.uid);
+    if (r.ok && prof && prof.role) cacheProfile(user.uid, prof);
+    if (!r.ok && !(prof && prof.role)) { console.error('[Cloud] profile read failed', r.err); report('error', 'profile: ' + (r.err.code || r.err.message)); Gate.show('retry', 'We couldn’t reach your account (' + (r.err.code || r.err.message) + '). Check your internet and try again.'); return; }
+    if (!prof || !prof.role) { api.profile = prof || {}; Gate.show('setup', user); return; }
+    boot(user, prof);
+  }
+  api.retry = () => { if (auth.currentUser) enter(auth.currentUser); };
+
   auth.onAuthStateChanged(async user => {
     if (user && user.isAnonymous) { await auth.signOut(); return; }      // old guest session → show sign-in
     if (!user) { if (!started) Gate.show('in'); return; }
-    if (started) return;
-    let prof = null;
-    try { const s = await userRef(user.uid).get(); prof = s.exists ? s.data() : null; }
-    catch (e) { console.error('[Cloud] profile read failed', e); report('error', 'profile: ' + (e.code || e.message)); }
-    if (!prof || !prof.role) { api.profile = prof || {}; Gate.show('setup', user); return; }
-    boot(user, prof);
+    enter(user);
   });
 
   /* ---------- classes & scores ---------- */
@@ -97,7 +115,8 @@ window.Cloud = (function () {
     const payload = clean({
       id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings,
       posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [],
-      qsets: qsets || [], ownerUid: api.uid
+      qsets: qsets || [], ownerUid: api.uid,
+      teacher: { name: (api.profile && api.profile.displayName) || 'Teacher', photo: (api.profile && api.profile.photo) || '' }
     });
     const sig = JSON.stringify(payload);
     if (lastSig[c.code] === sig) return null;

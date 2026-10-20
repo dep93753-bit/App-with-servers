@@ -57,6 +57,8 @@ window.Gate = (function () {
     try { await Cloud.resetPassword(em); say('agInErr', { message: 'Reset email sent — check your inbox.' }); } catch (er) { say('agInErr', er); }
   };
 
+  $('agRetryBtn').onclick = () => Cloud.retry();
+  $('agRetryOut').onclick = () => Cloud.signOut();
   document.querySelectorAll('.ag-role').forEach(b => b.onclick = () => {
     role = b.dataset.role; document.querySelectorAll('.ag-role').forEach(x => x.classList.toggle('on', x === b));
   });
@@ -75,10 +77,12 @@ window.Gate = (function () {
   return {
     resize,
     hide() { gate.hidden = true; },
-    show(mode, user) {
-      gate.hidden = false; const isSetup = mode === 'setup';
-      box.hidden = isSetup; setup.hidden = !isSetup;
-      if (isSetup) { $('agDisp').value = (user && user.displayName) || window.__pendingName || ''; paintSetupAvatar(); } else go('in');
+    show(mode, arg) {
+      gate.hidden = false;
+      box.hidden = mode !== 'in'; setup.hidden = mode !== 'setup'; $('agRetry').hidden = mode !== 'retry';
+      if (mode === 'setup') { $('agDisp').value = (arg && arg.displayName) || window.__pendingName || ''; paintSetupAvatar(); }
+      else if (mode === 'retry') $('agRetryMsg').textContent = arg || '';
+      else go('in');
     }
   };
 })();
