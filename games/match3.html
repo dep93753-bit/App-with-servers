@@ -7,7 +7,7 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
   body{background:linear-gradient(160deg,#020617,#0f172a);color:#f1f5f9;font-family:"Outfit",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
-  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;margin-bottom:10px}.hud b{color:#38bdf8}
+  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;margin-bottom:10px;flex-wrap:wrap;justify-content:center}.hud b{color:#38bdf8}
   #box{position:relative;background:#0b0e14;border-radius:12px;box-shadow:inset 0 0 15px rgba(0,0,0,.8);overflow:hidden;touch-action:none}
   .blk{position:absolute;border-radius:8px;cursor:pointer;transition:transform .25s cubic-bezier(.4,0,.2,1),opacity .2s;will-change:transform;box-shadow:0 4px 0 rgba(0,0,0,.35)}
   .blk.sel{outline:4px solid #fff;outline-offset:-4px;z-index:5;animation:pulse .7s ease-in-out infinite}
@@ -21,23 +21,39 @@
 </style>
 </head>
 <body>
-<div class="hud"><span>Score <b id="sc">0</b>/<b id="tg">500</b></span><span>Moves <b id="am">0</b></span><span>Strikes <b id="wr">0</b>/3</span></div>
+<div class="hud">
+  <span>Score <b id="sc">0</b>/<b id="tg">500</b></span>
+  <span>Best <b id="bs">0</b></span>
+  <span>Lv <b id="lv">1</b></span>
+  <span>Moves <b id="am">8</b></span>
+</div>
 <div id="box"></div>
-<div class="hint">Swipe a tile (or tap it, then tap a neighbor) to swap. Match 3 or more in a row or column. A good swap uses a move.</div>
+<div class="hint">Swipe a tile (or tap it, then tap a neighbor) to swap. Match 3 or more in a row or column. A good swap uses a move. Endless mode — every 500 points levels you up.</div>
 
 <script src="quiz-modal.js"></script>
 <script>
 (function () {
   "use strict";
-  var R = 6, C = 6, G = 8, TARGET = 500, COLORS = ['#f85149', '#58a6ff', '#3fb950', '#d29922'];
+  var R = 6, C = 6, G = 8, STEP = 500, START_AMMO = 8;
+  var COLORS = ['#f85149', '#58a6ff', '#3fb950', '#d29922'];
   var BS = Math.max(34, Math.min(50, Math.floor((Math.min(innerWidth, 440) - 40 - G * (C + 1)) / C)));
   var $ = function (i) { return document.getElementById(i); };
-  var box = $('box'), grid, els, score, busy, sel, down;
+  var box = $('box'), grid, els, score = 0, busy, sel, down;
+  var level = 1, target = STEP, best = 0;
+  try { best = parseInt(localStorage.getItem('m3.best'), 10) || 0; } catch (e) { best = 0; }
   box.style.width = C * BS + (C + 1) * G + 'px'; box.style.height = R * BS + (R + 1) * G + 'px';
 
-  var K = GameKit({ id: 'match3', ammo: 8, gainCorrect: 6, gainWrong: 1, maxWrong: 3, onUpdate: hud, getScore: function () { return score; }, restart: start });
+  /* maxWrong: Infinity -> the quiz can never strike you out. The run does not end. */
+  var K = GameKit({ id: 'match3', ammo: START_AMMO, gainCorrect: 6, gainWrong: 1, maxWrong: Infinity, onUpdate: hud, getScore: function () { return score; }, restart: start });
 
-  function hud() { $('sc').textContent = score; $('am').textContent = K.ammo; $('wr').textContent = K.wrong; }
+  function hud() {
+    if (score > best) { best = score; try { localStorage.setItem('m3.best', best); } catch (e) {} }
+    $('sc').textContent = score;
+    $('tg').textContent = target;
+    $('bs').textContent = best;
+    $('lv').textContent = level;
+    $('am').textContent = K.ammo;
+  }
   function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function xy(r, c) { return { x: c * (BS + G) + G, y: r * (BS + G) + G }; }
   function place(el, r, c) { var p = xy(r, c); el.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)'; el.dataset.r = r; el.dataset.c = c; }
@@ -99,7 +115,7 @@
 
   /* ---- selection: tap a tile then a neighbour, OR swipe a tile toward a neighbour ---- */
   function tap(r, c) {
-    if (busy || K.over || !els[r][c]) return;
+    if (busy || !els[r][c]) return;
     if (!sel) { sel = { r: r, c: c }; els[r][c].classList.add('sel'); return; }
     if (sel.r === r && sel.c === c) return clearSel();                         // tap again = deselect
     if (Math.abs(sel.r - r) + Math.abs(sel.c - c) !== 1) {                     // not a neighbour = pick this one instead
@@ -109,11 +125,11 @@
   }
   box.addEventListener('pointerdown', function (e) {
     var b = e.target.closest('.blk');
-    down = (b && !busy && !K.over) ? { r: +b.dataset.r, c: +b.dataset.c, x: e.clientX, y: e.clientY } : null;
+    down = (b && !busy) ? { r: +b.dataset.r, c: +b.dataset.c, x: e.clientX, y: e.clientY } : null;
   });
   box.addEventListener('pointerup', function (e) {
     var d = down; down = null;
-    if (!d || busy || K.over) return;
+    if (!d || busy) return;
     var dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 16) return tap(d.r, d.c);        // a tap
     var vert = Math.abs(dy) > Math.abs(dx), nr = d.r + (vert ? Math.sign(dy) : 0), nc = d.c + (vert ? 0 : Math.sign(dx));
@@ -146,18 +162,34 @@
       }
       await delay(320); m = matches(); chain++;
     }
-    if (score >= TARGET) { K.end(true); return; }
+
+    /* ---- endless: level up instead of ending ---- */
+    while (score >= target) {
+      level++; target = STEP * level;
+      say('LEVEL ' + level);
+      await delay(300);
+    }
+    hud();
+
     if (!hasSwap()) await shuffle();
-    if (K.ammo <= 0) K.ask(function () { busy = false; }); else busy = false;
+
+    /* ---- endless: if moves run out, top up after the quiz — the run never ends ---- */
+    if (K.ammo <= 0) {
+      K.ask(function () {
+        try { if (K.ammo <= 0) K.ammo = START_AMMO; } catch (e) {}
+        hud(); busy = false;
+      });
+    } else busy = false;
   }
 
   function start() {
     box.innerHTML = ''; score = 0; busy = false; sel = null; down = null;
+    level = 1; target = STEP;
     grid = Array.from({ length: R }, function () { return Array(C).fill(null); });
     els = Array.from({ length: R }, function () { return Array(C).fill(null); });
     for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) make(r, c, safeColor(r, c), false);
     if (!hasSwap()) shuffle();
-    $('tg').textContent = TARGET; hud();
+    hud();
   }
   start();
 })();
