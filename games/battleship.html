@@ -121,18 +121,9 @@ ul{list-style:none}
 /* ---------- modals ---------- */
 .overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,11,18,.8);backdrop-filter:blur(4px)}
 .modal{width:100%;border-radius:1.5rem;border:1px solid rgba(255,255,255,.1);background:linear-gradient(#0b3347,#071e2c);box-shadow:0 25px 50px -12px rgba(0,0,0,.6);animation:bs-pop .28s ease-out both}
-.modal.quiz{max-width:28rem;padding:1.5rem}
 .modal.result{max-width:24rem;padding:1.75rem;text-align:center}
 .eyebrow{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.2em;color:#f0c14b}
 .modal h2{margin-top:.5rem;font-size:1.25rem;font-weight:700;line-height:1.35;text-wrap:balance}
-.modal .meta{margin-top:.25rem;font-size:.875rem;color:rgba(255,255,255,.6)}
-.opts{display:grid;gap:.625rem;margin-top:1.25rem}
-.opt{display:flex;min-height:48px;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);text-align:left;font-weight:600;transition:background .15s,border-color .15s}
-.opt:hover:not(:disabled){border-color:rgba(240,193,75,.7);background:rgba(255,255,255,.1)}
-.opt:disabled{opacity:.6}
-.opt.right{opacity:1;border-color:#34d399;background:rgba(52,211,153,.2);color:#d1fae5}
-.opt.wrong{opacity:1;border-color:#f87171;background:rgba(248,113,113,.2);color:#fee2e2}
-.qmsg{margin-top:1rem;min-height:1.5rem;font-size:.875rem;font-weight:600}
 .result .eyebrow{letter-spacing:.25em}
 .result .eyebrow.win{color:#6ee7b7}.result .eyebrow.lose{color:#fca5a5}
 .result h2{font-size:2.25rem;font-weight:900}
@@ -204,6 +195,7 @@ ul{list-style:none}
 </div>
 <div id="modalRoot"></div>
 
+<script src="quiz-modal.js"></script>
 <script>
 (() => {
 'use strict'
@@ -247,6 +239,7 @@ const LEVELS = [
   { id: 'medium', name: 'Officer', desc: 'Enemy hunts after a hit' },
   { id: 'hard', name: 'Admiral', desc: 'Hunts, tracks lines & uses parity' },
 ]
+/* Fallback questions used only when no host sends `loadQuiz` (standalone play). */
 const DEFAULT_QUESTIONS = [
   { question: 'What is the capital of Australia?', options: ['Sydney', 'Canberra', 'Melbourne', 'Perth'], correct: 1 },
   { question: 'Which planet is known as the Red Planet?', options: ['Venus', 'Jupiter', 'Mars', 'Mercury'], correct: 2 },
@@ -482,7 +475,6 @@ const sfx = Sound
    ========================================================================= */
 const WATER_LIFE = 3.2
 
-// flat sea palette, deepest → crest, then the foam highlight
 const SEA_BANDS = [
   [8, 38, 60],
   [12, 58, 86],
@@ -545,7 +537,6 @@ class Water {
       const v = (y + 0.5) * dv
       for (let x = 0; x < lw; x++) {
         const u = (x + 0.5) * du
-        // four slow plane waves → big organic blobs, no fine caustic noise
         const a1 = Math.sin(u * 0.84 + v * 0.21 + t * 0.33)
         const a2 = Math.sin(v * 1.0 - u * 0.16 - t * 0.27)
         const a3 = Math.sin((u + v) * 0.57 + t * 0.19)
@@ -558,7 +549,6 @@ class Water {
         if (f >= SEA_EDGES[2]) band = 3
         if (f >= SEA_EDGES[3]) band = 4
 
-        // light foam ridges along every band boundary
         let foam = 0
         let e
         e = 1 - Math.abs(f - SEA_EDGES[0]) / SEA_FOAM_WIDTH
@@ -1330,8 +1320,8 @@ const G = {
 }
 let runId = 0, timers = [], drag = null, aimDown = false, lastPtr = null
 let aiMem = createAiMemory()
-let questions = DEFAULT_QUESTIONS, quizId = 'battleship-default', quizIdx = 0
 let answers = [], bannerSeq = 0
+let quizCounter = 0
 
 function later(fn, ms) {
   const run = runId
@@ -1341,12 +1331,37 @@ function resetTimers() { runId++; timers.forEach(clearTimeout); timers = [] }
 function set(patch) { Object.assign(G, patch); render() }
 function aim(patch) { Object.assign(G, patch) }
 
-window.addEventListener('message', (e) => {
-  const d = e.data
-  if (!d || d.type !== 'quizConfig' || !Array.isArray(d.questions)) return
-  const valid = d.questions.filter((q) => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length > 1 && typeof q.correct === 'number')
-  if (valid.length) { questions = valid; if (typeof d.quizId === 'string') quizId = d.quizId }
-})
+/* =========================================================================
+   Quiz integration via shared quiz-modal.js
+   - Questions arrive through the `loadQuiz` postMessage (handled in quiz-modal.js).
+   - The popup itself is the shared one (makeQuizModal).
+   - Ammo is read/written through G.ammo so the existing HUD pill stays in sync.
+   ========================================================================= */
+const hasSharedQuiz = typeof makeQuizModal === 'function'
+
+// Fallback questions for standalone play (when the host sends no loadQuiz).
+if (typeof window.QUESTIONS === 'undefined') window.QUESTIONS = []
+if (window.QUESTIONS.length === 0) {
+  window.QUESTIONS = DEFAULT_QUESTIONS.slice()
+}
+
+const openSharedQuiz = hasSharedQuiz ? makeQuizModal({
+  isOpen: () => !!G.quiz,
+  setOpen: (v) => { G.quiz = v ? true : null },
+  getAmmo: () => G.ammo,
+  setAmmo: (v) => { G.ammo = v },
+  getIdx: () => quizCounter,
+  setIdx: (v) => { quizCounter = v },
+  gainCorrect: AMMO_PER_CORRECT,
+  gainWrong: AMMO_PER_WRONG,
+  onUpdate: () => render(),
+  onAnswer: (qIdx, correct) => { answers.push({ qIdx, correct }) },
+}) : function shimQuiz(onDone) {
+  // If quiz-modal.js did not load, fall back to a silent ammo grant.
+  G.ammo += AMMO_PER_CORRECT
+  render()
+  if (typeof onDone === 'function') setTimeout(onDone, 120)
+}
 
 /* ---- DOM scaffolding ---- */
 function buildPanel(kind, title, slot) {
@@ -1425,7 +1440,7 @@ FLEET.forEach((def) => {
 })
 
 /* ---- render ---- */
-let pipKey = '', quizEl = null, resultEl = null
+let pipKey = '', resultEl = null
 function render() {
   const menu = G.phase === 'menu'
   $('menu').hidden = !menu
@@ -1487,14 +1502,11 @@ function render() {
     $('rotateBtn').setAttribute('aria-label', 'Rotate, currently ' + (G.horizontal ? 'horizontal' : 'vertical'))
   }
 
-  // modals
-  if (G.quiz && !quizEl) showQuiz()
-  if (!G.quiz && quizEl) { quizEl.remove(); quizEl = null }
+  // result modal
   if (G.phase === 'result' && !resultEl) showResult()
   if (G.phase !== 'result' && resultEl) { resultEl.remove(); resultEl = null }
 }
 function closeModals() {
-  if (quizEl) { quizEl.remove(); quizEl = null }
   if (resultEl) { resultEl.remove(); resultEl = null }
 }
 function syncFleet(panel, board) {
@@ -1522,41 +1534,7 @@ function syncBanner(panel, banner) {
   }
 }
 
-/* ---- quiz + result modals ---- */
-function showQuiz() {
-  const q = G.quiz.q
-  const ov = document.createElement('div')
-  ov.className = 'overlay'
-  ov.innerHTML =
-    '<div class="modal quiz" role="dialog" aria-modal="true" aria-labelledby="quiz-title">' +
-    '<p class="eyebrow">Out of ammo \u00b7 Reload</p><h2 id="quiz-title"></h2>' +
-    '<p class="meta">Correct: +' + AMMO_PER_CORRECT + ' shells \u00b7 Wrong: +' + AMMO_PER_WRONG + '</p>' +
-    '<div class="opts"></div><p class="qmsg" aria-live="polite"></p></div>'
-  ov.querySelector('h2').textContent = q.question
-  const opts = ov.querySelector('.opts'), msg = ov.querySelector('.qmsg')
-  const btns = q.options.map((text, i) => {
-    const b = document.createElement('button')
-    b.type = 'button'; b.className = 'opt'
-    const sp = document.createElement('span'); sp.textContent = text
-    const mark = document.createElement('span')
-    b.append(sp, mark)
-    b.addEventListener('click', () => {
-      if (btns.some((x) => x.disabled)) return
-      btns.forEach((x) => (x.disabled = true))
-      const ok = i === q.correct
-      if (ok) sfx.correct(); else sfx.wrong()
-      btns[q.correct].classList.add('right'); btns[q.correct].lastChild.innerHTML = icon('ok')
-      if (!ok) { b.classList.add('wrong'); mark.innerHTML = icon('bad') }
-      msg.textContent = ok ? 'Locked and loaded \u2014 +' + AMMO_PER_CORRECT + ' shells!' : 'Not quite \u2014 +' + AMMO_PER_WRONG + ' shell.'
-      setTimeout(() => resolveQuiz(ok), 1500)
-    })
-    opts.appendChild(b)
-    return b
-  })
-  $('modalRoot').appendChild(ov)
-  quizEl = ov
-  btns[0].focus()
-}
+/* ---- result modal ---- */
 function showResult() {
   const acc = G.shots ? Math.round((G.hits / G.shots) * 100) : 0
   const ov = document.createElement('div')
@@ -1586,8 +1564,7 @@ function flash(side, text, tone) {
 function startPlacement(level) {
   resetTimers()
   drag = null; aimDown = false
-  aiMem = createAiMemory(); answers = []
-  quizIdx = Math.floor(Math.random() * questions.length)
+  aiMem = createAiMemory(); answers = []; quizCounter = 0
   sfx.unlock()
   set({
     phase: 'placement', level: level || G.level, player: createBoard(), enemy: createBoard(),
@@ -1615,23 +1592,25 @@ function endGame(won) {
   if (won) sfx.win(); else sfx.lose()
   set({ phase: 'result', won, busy: false, reticle: null })
   try {
-    window.parent.postMessage({ type: 'gameEnd', game: 'battleship', quizId, won, score: won ? 100 : 0, answers }, '*')
+    window.parent.postMessage({
+      type: 'gameEnd',
+      game: 'battleship',
+      quizId: (typeof window.QUIZ_ID === 'string' ? window.QUIZ_ID : 'preset'),
+      won: won,
+      score: won ? 100 : 0,
+      answers: answers,
+    }, '*')
   } catch (e) { /* not embedded */ }
 }
 
-/* ---- quiz flow ---- */
+/* ---- quiz flow (shared modal) ---- */
 function openQuiz() {
   if (G.quiz || G.phase !== 'combat') return
-  const idx = quizIdx % questions.length
-  quizIdx++
   sfx.ping()
-  set({ quiz: { q: questions[idx], idx }, reticle: null, hud: 'Out of ammo \u2014 answer to reload' })
-}
-function resolveQuiz(correct) {
-  if (!G.quiz) return
-  answers.push({ qIdx: G.quiz.idx, correct })
-  const gain = correct ? AMMO_PER_CORRECT : AMMO_PER_WRONG
-  set({ quiz: null, ammo: G.ammo + gain, hud: 'Reloaded +' + gain + (correct ? ' shells' : ' shell') + ' \u2014 your turn' })
+  set({ reticle: null, hud: 'Out of ammo \u2014 answer to reload' })
+  openSharedQuiz(() => {
+    set({ hud: 'Reloaded \u2014 your turn' })
+  })
 }
 
 /* ---- combat flow ---- */
