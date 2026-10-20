@@ -478,81 +478,102 @@ const Sound = (() => {
 const sfx = Sound
 
 /* =========================================================================
-   Animated top-down ocean
+   Animated top-down ocean — flat cartoon bands, foam crests, sparkles
    ========================================================================= */
 const WATER_LIFE = 3.2
-const LUT = (() => {
-  const stops = [[5, 34, 58], [9, 62, 92], [16, 104, 132], [48, 160, 182], [150, 218, 226]]
-  const lut = new Uint8ClampedArray(256 * 3)
-  for (let i = 0; i < 256; i++) {
-    const f = (i / 255) * (stops.length - 1)
-    const k = Math.min(stops.length - 2, Math.floor(f))
-    const m = f - k
-    for (let ch = 0; ch < 3; ch++) lut[i * 3 + ch] = stops[k][ch] + (stops[k + 1][ch] - stops[k][ch]) * m
-  }
-  return lut
-})()
+
+// flat sea palette, deepest → crest, then the foam highlight
+const SEA_BANDS = [
+  [8, 38, 60],
+  [12, 58, 86],
+  [18, 82, 114],
+  [28, 108, 140],
+  [44, 138, 168],
+]
+const SEA_EDGES = [0.28, 0.44, 0.58, 0.72]
+const SEA_FOAM = [176, 238, 250]
+const SEA_FOAM_W = [0.14, 0.22, 0.36, 0.56]
+const SEA_FOAM_WIDTH = 0.016
 
 class Water {
   constructor(baseRes) {
     this.baseRes = baseRes || 120
     this.off = document.createElement('canvas')
     this.octx = this.off.getContext('2d')
-    this.img = null; this.lw = 0; this.lh = 0
+    this.img = null
+    this.lw = 0
+    this.lh = 0
+    this.sparkles = null
   }
   ensure(aspect) {
     const lw = this.baseRes
     const lh = Math.max(8, Math.round(this.baseRes / aspect))
     if (lw !== this.lw || lh !== this.lh || !this.img) {
-      this.lw = lw; this.lh = lh
-      this.off.width = lw; this.off.height = lh
+      this.lw = lw
+      this.lh = lh
+      this.off.width = lw
+      this.off.height = lh
       this.img = this.octx.createImageData(lw, lh)
     }
   }
+  seedSparkles(worldW, worldH) {
+    if (this.sparkles && this.sparkles.w === worldW && this.sparkles.h === worldH) return
+    const list = []
+    const count = Math.round(worldW * worldH * 0.4)
+    for (let i = 0; i < count; i++) {
+      list.push({
+        x: Math.random() * worldW,
+        y: Math.random() * worldH,
+        ph: Math.random() * Math.PI * 2,
+        rate: 0.5 + Math.random() * 1.3,
+        sz: 0.03 + Math.random() * 0.06,
+      })
+    }
+    list.w = worldW
+    list.h = worldH
+    this.sparkles = list
+  }
   draw(ctx, W, H, worldW, worldH, t, ripples) {
     this.ensure(W / H)
+    this.seedSparkles(worldW, worldH)
+
     const data = this.img.data
     const lw = this.lw, lh = this.lh
-    const active = ripples.filter((r) => t - r.t0 < WATER_LIFE && t - r.t0 >= 0)
-    const rc = active.length
-    const rx = [], ry = [], rrad = [], rfade = []
-    for (let i = 0; i < rc; i++) {
-      const r = active[i], age = t - r.t0
-      rx.push(r.x); ry.push(r.y)
-      rrad.push(age * (r.speed || 3.6))
-      rfade.push(r.strength * (1 - age / WATER_LIFE) * (1 - age / WATER_LIFE))
-    }
+    const du = worldW / lw, dv = worldH / lh
     let p = 0
     for (let y = 0; y < lh; y++) {
-      const v = ((y + 0.5) / lh) * worldH
+      const v = (y + 0.5) * dv
       for (let x = 0; x < lw; x++) {
-        const u = ((x + 0.5) / lw) * worldW
-        const a = Math.sin(u * 1.35 + t * 0.8 + Math.sin(v * 0.9 + t * 0.4) * 1.2)
-        const b = Math.sin(v * 1.7 - t * 0.65 + Math.sin(u * 1.1 - t * 0.3) * 1.4)
-        const c = Math.sin((u + v) * 0.9 + t * 0.55)
-        let n = 0.42 + (a + b + c) * 0.11
-        const q = Math.sin(u * 2.3 + Math.sin(v * 2.0 + t * 0.7) * 1.6 + t * 0.5) + Math.sin(v * 2.6 + Math.sin(u * 1.8 - t * 0.6) * 1.5 - t * 0.45)
-        const ridge = 1 - Math.abs(q * 0.5)
-        const r2 = ridge * ridge, r4 = r2 * r2
-        const caustic = r4 * r4
-        let glint = 0
-        for (let i = 0; i < rc; i++) {
-          const dx = u - rx[i], dy = v - ry[i]
-          const d = Math.sqrt(dx * dx + dy * dy)
-          const delta = d - rrad[i]
-          if (delta > 1.6 || delta < -1.6) continue
-          const env = Math.exp(-delta * delta * 2.2) * rfade[i]
-          const wave = Math.cos(delta * 7)
-          n += wave * env * 0.2
-          glint += env * (wave > 0.6 ? wave : 0)
-        }
-        let idx = (n * 255) | 0
-        if (idx < 0) idx = 0; else if (idx > 255) idx = 255
-        const li = idx * 3
-        const boost = caustic * 34 + glint * 90
-        data[p++] = LUT[li] + boost * 0.7
-        data[p++] = LUT[li + 1] + boost * 0.95
-        data[p++] = LUT[li + 2] + boost
+        const u = (x + 0.5) * du
+        // four slow plane waves → big organic blobs, no fine caustic noise
+        const a1 = Math.sin(u * 0.84 + v * 0.21 + t * 0.33)
+        const a2 = Math.sin(v * 1.0 - u * 0.16 - t * 0.27)
+        const a3 = Math.sin((u + v) * 0.57 + t * 0.19)
+        const a4 = Math.sin((u - v) * 0.45 - t * 0.23)
+        const f = 0.5 + (a1 * 0.4 + a2 * 0.34 + a3 * 0.2 + a4 * 0.16) * 0.8
+
+        let band = 0
+        if (f >= SEA_EDGES[0]) band = 1
+        if (f >= SEA_EDGES[1]) band = 2
+        if (f >= SEA_EDGES[2]) band = 3
+        if (f >= SEA_EDGES[3]) band = 4
+
+        // light foam ridges along every band boundary
+        let foam = 0
+        let e
+        e = 1 - Math.abs(f - SEA_EDGES[0]) / SEA_FOAM_WIDTH
+        if (e > 0) foam = e * SEA_FOAM_W[0]
+        e = 1 - Math.abs(f - SEA_EDGES[1]) / SEA_FOAM_WIDTH
+        if (e > 0) { e *= SEA_FOAM_W[1]; if (e > foam) foam = e }
+        e = 1 - Math.abs(f - SEA_EDGES[2]) / SEA_FOAM_WIDTH
+        if (e > 0) { e *= SEA_FOAM_W[2]; if (e > foam) foam = e }
+        e = 1 - Math.abs(f - SEA_EDGES[3]) / SEA_FOAM_WIDTH
+        if (e > 0) { e *= SEA_FOAM_W[3]; if (e > foam) foam = e }
+
+        const b = SEA_BANDS[band]
+        data[p++] = b[0] + (SEA_FOAM[0] - b[0]) * foam
+        data[p++] = b[1] + (SEA_FOAM[1] - b[1]) * foam
+        data[p++] = b[2] + (SEA_FOAM[2] - b[2]) * foam
         data[p++] = 255
       }
     }
@@ -560,6 +581,52 @@ class Water {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(this.off, 0, 0, W, H)
+
+    const sx = W / worldW, sy = H / worldH
+    this.drawSparkles(ctx, sx, sy, t)
+    this.drawRipples(ctx, sx, sy, t, ripples)
+  }
+  drawSparkles(ctx, sx, sy, t) {
+    const list = this.sparkles
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineWidth = Math.max(1, sx * 0.018)
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i]
+      const tw = Math.sin(t * s.rate + s.ph)
+      if (tw < 0.55) continue
+      const a = (tw - 0.55) / 0.45
+      const x = s.x * sx, y = s.y * sy
+      const r = s.sz * sx * (0.5 + a * 0.9)
+      ctx.strokeStyle = 'rgba(226,250,255,' + a * 0.45 + ')'
+      ctx.beginPath()
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y)
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  drawRipples(ctx, sx, sy, t, ripples) {
+    if (!ripples || !ripples.length) return
+    ctx.save()
+    for (let i = 0; i < ripples.length; i++) {
+      const r = ripples[i]
+      const age = t - r.t0
+      if (age < 0 || age > WATER_LIFE) continue
+      const k = 1 - age / WATER_LIFE
+      const str = r.strength == null ? 1 : r.strength
+      const x = r.x * sx, y = r.y * sy
+      const ring = Math.max(0.02, age * (r.speed || 3.6)) * sx
+      ctx.strokeStyle = 'rgba(200,245,255,' + Math.min(0.75, 0.6 * k * k * str) + ')'
+      ctx.lineWidth = Math.max(1.2, sx * 0.05 * (0.4 + k * 0.6))
+      ctx.beginPath(); ctx.arc(x, y, ring, 0, Math.PI * 2); ctx.stroke()
+      if (ring > sx * 0.4) {
+        ctx.strokeStyle = 'rgba(200,245,255,' + Math.min(0.4, 0.26 * k * k * str) + ')'
+        ctx.lineWidth = Math.max(1, sx * 0.028 * k)
+        ctx.beginPath(); ctx.arc(x, y, ring * 0.6, 0, Math.PI * 2); ctx.stroke()
+      }
+    }
+    ctx.restore()
   }
 }
 
@@ -891,7 +958,7 @@ class BoardView {
   constructor(wrap, canvas, kind, getProps) {
     this.wrap = wrap; this.canvas = canvas; this.kind = kind; this.getProps = getProps
     this.ctx = canvas.getContext('2d')
-    this.water = new Water(116)
+    this.water = new Water(150)
     this.fx = new Fx()
     this.ripples = []; this.shells = []; this.shake_ = 0
     this.last = performance.now() / 1000
@@ -1210,7 +1277,7 @@ class BoardView {
 function startBackdrop() {
   const canvas = $('backdrop')
   const ctx = canvas.getContext('2d')
-  const water = new Water(130)
+  const water = new Water(140)
   const lanes = FLEET.map((f, i) => ({
     id: f.id, length: f.length,
     y: 0.12 + (i / FLEET.length) * 0.82 + (i % 2) * 0.03,
