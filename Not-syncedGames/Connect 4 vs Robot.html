@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connect 4 vs Robot</title>
+<style>
+:root{
+  --bg:#dcd8ec; --ink:#231a6b; --board:#4b3fd0; --ring:#2a1f80; --well:#150e45;
+  --me:#ff7a3d; --bot:#c4ee3c; --metal:#b9c0d0; --metal-d:#6b7388;
+  --c:min(12.4vw,74px);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#17132e;--ink:#e8e4ff;--board:#5446e0;--well:#0b0726}
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:ui-rounded,"SF Pro Rounded","Avenir Next","Nunito",system-ui,sans-serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;overflow-x:hidden}
+h1{margin:0;font-size:clamp(26px,6vw,38px);font-weight:800;letter-spacing:-.02em}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+.chip{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:rgba(75,63,208,.14);font-weight:700}
+.chip i{width:16px;height:16px;border-radius:50%;display:inline-block}
+#status{min-height:1.4em;font-weight:700;font-size:clamp(16px,4vw,20px);text-align:center}
+button.btn,select{font:inherit;font-weight:700;color:var(--ink);background:transparent;border:2px solid var(--ink);border-radius:12px;padding:7px 14px;cursor:pointer}
+button.btn{background:var(--ink);color:var(--bg)}
+button.btn:focus-visible,select:focus-visible,.col:focus-visible{outline:3px solid var(--me);outline-offset:2px}
+
+.stage{position:relative;width:calc(7*var(--c));padding-top:calc(var(--c)*1.5)}
+.board{position:relative;z-index:1;width:calc(7*var(--c));height:calc(6*var(--c))}
+.back{position:absolute;inset:0;background:var(--well);border-radius:20px;z-index:0}
+.discs{position:absolute;inset:0;z-index:1}
+.front{position:absolute;inset:0;z-index:2;border-radius:20px;pointer-events:none;
+  background:radial-gradient(circle closest-side at center,transparent 0 84%,var(--ring) 85% 92%,var(--board) 93%);
+  background-size:calc(100%/7) calc(100%/6);
+  box-shadow:inset 0 0 0 6px rgba(255,255,255,.14),0 12px 0 var(--ring),0 24px 30px rgba(0,0,0,.25)}
+.disc{position:absolute;width:calc(var(--c)*.82);height:calc(var(--c)*.82);border-radius:50%;
+  left:calc(var(--col)*var(--c) + var(--c)*.09);top:calc(var(--row)*var(--c) + var(--c)*.09);
+  transition:left .7s cubic-bezier(.6,0,.3,1),top var(--fall,.4s) cubic-bezier(.5,0,.9,.6);
+  box-shadow:inset 0 calc(var(--c)*-.06) 0 rgba(0,0,0,.2)}
+.disc::after{content:"";position:absolute;inset:20%;border-radius:50%;border:calc(var(--c)*.05) solid rgba(0,0,0,.2)}
+.disc.h{background:var(--me)} .disc.a{background:var(--bot)}
+.disc.a::after{border-style:dashed}
+.disc.ghost{opacity:.45;pointer-events:none;transition:left .1s}
+.disc.pop{animation:pop .2s}
+.disc.land{animation:land .22s}
+.disc.win{animation:glow .7s infinite alternate}
+@keyframes pop{from{transform:scale(.2)}}
+@keyframes land{40%{transform:scaleY(.9) translateY(3px)}}
+@keyframes glow{to{box-shadow:0 0 0 5px #fff,0 0 20px #fff,inset 0 calc(var(--c)*-.06) 0 rgba(0,0,0,.2)}}
+
+.cols{position:absolute;z-index:4;left:0;right:0;top:calc(var(--c)*.5);bottom:0;display:grid;grid-template-columns:repeat(7,1fr)}
+.col{background:none;border:0;padding:0;cursor:pointer;border-radius:14px}
+
+/* Robot hand */
+.rail{position:absolute;z-index:2;left:-10px;right:-10px;top:calc(var(--c)*.2);height:10px;border-radius:6px;
+  background:linear-gradient(#c9ced9,#8d95a9);box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.hand{position:absolute;z-index:3;top:0;left:calc(var(--col)*var(--c));width:var(--c);height:calc(var(--c)*1.5);
+  transition:left .7s cubic-bezier(.6,0,.3,1);pointer-events:none}
+.carriage{position:absolute;left:6%;right:6%;top:calc(var(--c)*.1);height:calc(var(--c)*.28);border-radius:9px;
+  background:linear-gradient(#d4d9e4,#9aa2b4);box-shadow:inset 0 -3px 0 #7b8397,0 3px 0 rgba(0,0,0,.18)}
+.led{position:absolute;left:50%;top:50%;width:calc(var(--c)*.1);height:calc(var(--c)*.1);margin:calc(var(--c)*-.05);border-radius:50%;background:var(--bot);box-shadow:0 0 8px var(--bot)}
+.hand.think .led{animation:blink .35s infinite alternate}
+@keyframes blink{to{opacity:.15}}
+.rod{position:absolute;left:50%;top:calc(var(--c)*.36);height:calc(var(--c)*.26);width:calc(var(--c)*.13);margin-left:calc(var(--c)*-.065);
+  background:repeating-linear-gradient(#aab1c2 0 6px,#8d95a9 6px 8px);border-radius:3px}
+.hand svg{position:absolute;left:0;bottom:0;width:var(--c);height:var(--c);overflow:visible}
+.f{transition:transform .25s ease-out}
+.fl{transform-origin:24px 8px} .fr{transform-origin:76px 8px}
+.hand.open .fl{transform:rotate(26deg)} .hand.open .fr{transform:rotate(-26deg)}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01s!important;animation:none!important}}
+</style>
+</head>
+<body>
+<h1>Connect 4</h1>
+<div class="bar">
+  <div class="chip"><i style="background:var(--me)"></i>You <span id="sh">0</span></div>
+  <div class="chip"><i style="background:var(--bot)"></i>Robot <span id="sa">0</span></div>
+</div>
+<div id="status" aria-live="polite"></div>
+
+<div class="stage" id="stage">
+  <div class="rail"></div>
+  <div class="hand open" id="hand" style="--col:3">
+    <div class="carriage"><div class="led"></div></div>
+    <div class="rod"></div>
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <g class="f fl"><path d="M24 8 Q4 20 6 52 Q7 62 18 70" fill="none" stroke="#6b7388" stroke-width="12" stroke-linecap="round"/><path d="M24 8 Q4 20 6 52 Q7 62 18 70" fill="none" stroke="#b9c0d0" stroke-width="7" stroke-linecap="round"/></g>
+      <g class="f fr"><path d="M76 8 Q96 20 94 52 Q93 62 82 70" fill="none" stroke="#6b7388" stroke-width="12" stroke-linecap="round"/><path d="M76 8 Q96 20 94 52 Q93 62 82 70" fill="none" stroke="#b9c0d0" stroke-width="7" stroke-linecap="round"/></g>
+      <rect x="20" y="0" width="60" height="14" rx="5" fill="#9aa2b4" stroke="#6b7388" stroke-width="3"/>
+      <circle cx="50" cy="7" r="3" fill="#6b7388"/>
+    </svg>
+  </div>
+  <div class="board">
+    <div class="back"></div>
+    <div class="discs" id="discs"></div>
+    <div class="front"></div>
+  </div>
+  <div class="cols" id="cols"></div>
+</div>
+
+<div class="bar" style="margin-top:14px">
+  <button class="btn" id="again">New game</button>
+  <label>Robot level
+    <select id="lvl"><option value="2">Easy</option><option value="4" selected>Medium</option><option value="6">Hard</option></select>
+  </label>
+</div>
+
+<script>
+const R=6,C=7,H=1,A=2,ORDER=[3,2,4,1,5,0,6];
+const $=s=>document.querySelector(s), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const hand=$('#hand'),discs=$('#discs'),statusEl=$('#status');
+let g,over,busy,handCol=3,ghost,sc={h:0,a:0};
+
+/* ---------- game logic ---------- */
+const drop=(b,c,p)=>{for(let r=R-1;r>=0;r--)if(!b[r][c]){b[r][c]=p;return r}return -1};
+function winCells(b,r,c,p){
+  for(const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]){
+    const cells=[[r,c]];
+    for(const s of [1,-1]){let y=r+dr*s,x=c+dc*s;
+      while(y>=0&&y<R&&x>=0&&x<C&&b[y][x]===p){cells.push([y,x]);y+=dr*s;x+=dc*s}}
+    if(cells.length>=4)return cells;
+  }
+  return null;
+}
+function evalBoard(b){ // from the robot's view
+  let s=0;
+  for(let r=0;r<R;r++)if(b[r][3]===A)s+=3; else if(b[r][3]===H)s-=3;
+  for(const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]])
+    for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+      const er=r+dr*3,ec=c+dc*3; if(er<0||er>=R||ec<0||ec>=C)continue;
+      let a=0,h=0;
+      for(let k=0;k<4;k++){const v=b[r+dr*k][c+dc*k]; if(v===A)a++; else if(v===H)h++}
+      if(a&&h)continue;
+      if(a===3)s+=6; else if(a===2)s+=2;
+      if(h===3)s-=8; else if(h===2)s-=2;
+    }
+  return s;
+}
+function negamax(b,d,al,be,p){
+  let any=false,best=-Infinity;
+  for(const c of ORDER){
+    if(b[0][c])continue; any=true;
+    const r=drop(b,c,p); let v;
+    if(winCells(b,r,c,p))v=1e6+d;
+    else if(d<=1)v=(p===A?1:-1)*evalBoard(b);
+    else v=-negamax(b,d-1,-be,-al,3-p);
+    b[r][c]=0;
+    if(v>best)best=v; if(best>al)al=best; if(al>=be)break;
+  }
+  return any?best:0;
+}
+function pickMove(){
+  const lvl=+$('#lvl').value, open=ORDER.filter(c=>!g[0][c]);
+  if(lvl===2&&Math.random()<.3)return open[Math.floor(Math.random()*open.length)];
+  let best=-Infinity,bc=open[0];
+  for(const c of open){
+    const r=drop(g,c,A); let v;
+    if(winCells(g,r,c,A))v=1e7;
+    else v=-negamax(g,lvl-1,-Infinity,Infinity,H);
+    g[r][c]=0;
+    if(v>best){best=v;bc=c}
+  }
+  return bc;
+}
+
+/* ---------- visuals ---------- */
+const say=t=>statusEl.textContent=t;
+const setHand=c=>{handCol=c;hand.style.setProperty('--col',c)};
+function makeDisc(p,col,row,cls=''){
+  const d=document.createElement('div');
+  d.className='disc '+(p===H?'h':'a')+' '+cls;
+  d.style.setProperty('--col',col);d.style.setProperty('--row',row);
+  discs.appendChild(d);return d;
+}
+async function fall(d,row){
+  const t=.22+.06*(row+1);
+  d.style.setProperty('--fall',t+'s');
+  d.offsetWidth; d.style.setProperty('--row',row);
+  await sleep(t*1000+40); d.classList.add('land');
+}
+function finish(p,r,c){
+  const w=winCells(g,r,c,p);
+  if(w){
+    over=true;
+    [...discs.querySelectorAll('.disc:not(.ghost)')].forEach(d=>{
+      const col=+d.style.getPropertyValue('--col'),row=+d.style.getPropertyValue('--row');
+      if(w.some(([y,x])=>y===row&&x===col))d.classList.add('win');
+    });
+    if(p===H){sc.h++;say('You win! Nice one.')} else {sc.a++;say('The robot wins this round.')}
+    $('#sh').textContent=sc.h;$('#sa').textContent=sc.a;
+    return true;
+  }
+  if(g[0].every(Boolean)){over=true;say('Draw — the board is full.');return true}
+  return false;
+}
+
+async function humanMove(c){
+  if(busy||over||g[0][c])return;
+  busy=true; ghost.style.display='none';
+  const r=drop(g,c,H), d=makeDisc(H,c,-1);
+  await fall(d,r);
+  if(!finish(H,r,c))await robotTurn();
+  busy=false;
+}
+async function robotTurn(){
+  say('Robot is thinking…'); hand.classList.add('think');
+  await sleep(450);
+  const c=pickMove(); hand.classList.remove('think');
+  const r=drop(g,c,A); g[r][c]=0;           // peek row, place for real after landing
+  const d=makeDisc(A,handCol,-1,'pop');
+  await sleep(250); hand.classList.remove('open');   // grab
+  await sleep(300);
+  setHand(c); d.style.setProperty('--col',c);        // carry
+  await sleep(760);
+  hand.classList.add('open');                        // release
+  await sleep(200);
+  g[r][c]=A; await fall(d,r);
+  const ended=finish(A,r,c);
+  setHand(3);
+  if(!ended)say('Your turn — pick a column.');
+}
+
+function newGame(){
+  g=Array.from({length:R},()=>Array(C).fill(0));
+  over=false;busy=false;discs.innerHTML='';
+  hand.classList.add('open');hand.classList.remove('think');setHand(3);
+  ghost=makeDisc(H,3,-1,'ghost');ghost.style.display='none';
+  say('Your turn — pick a column.');
+}
+
+/* ---------- setup ---------- */
+const cols=$('#cols');
+for(let c=0;c<C;c++){
+  const b=document.createElement('button');
+  b.className='col';b.setAttribute('aria-label','Drop in column '+(c+1));
+  const show=()=>{if(!busy&&!over&&!g[0][c]){ghost.style.setProperty('--col',c);ghost.style.display=''}};
+  b.addEventListener('mouseenter',show);b.addEventListener('focus',show);
+  b.addEventListener('click',()=>humanMove(c));
+  cols.appendChild(b);
+}
+cols.addEventListener('mouseleave',()=>ghost.style.display='none');
+$('#again').addEventListener('click',newGame);
+newGame();
+</script>
+</body>
+</html>
