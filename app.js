@@ -563,7 +563,7 @@ function route() {
 }
 function goNav(v) {                       // teacher: switch page (sidebar or phone bottom bar)
   nav = v;
-  if (v === 'ai') { renderChat(); ensureAuth().then(() => { updateAuthBadge(); updateLogoutVisibility(); }).catch(() => {}); }
+  if (v === 'ai') openAITab();
   if (v === 'questions') renderQuestionSets();
   if (v === 'analytics') renderAnalytics();
   route(); scrollTo(0, 0);
@@ -991,7 +991,7 @@ function renderQuestionSets() {
   const list = $('#qsList');
   if (!qsets.length) {
     list.innerHTML = `<div class="qb-empty"><i class='bx bx-list-check'></i><h3>No question sets yet</h3><p style="margin:8px 0 16px">Head to the AI Quiz tab and make one — it'll appear here.</p><button class="btn" id="qsEmptyGo">Open AI Quiz</button></div>`;
-    const b = $('#qsEmptyGo'); if (b) b.onclick = () => { nav = 'ai'; renderChat(); ensureAuth().then(updateAuthBadge).catch(()=>{}); route(); };
+    const b = $('#qsEmptyGo'); if (b) b.onclick = () => goNav('ai');
     return;
   }
   list.innerHTML = qsets.map(qs => {
@@ -1021,7 +1021,7 @@ function renderQuestionSets() {
   list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editQuiz(b.dataset.edit));
   list.querySelectorAll('[data-delqs]').forEach(b => b.onclick = () => { if (!confirm('Delete this question set?')) return; qsets = qsets.filter(x => x.id !== b.dataset.delqs); saveQSets(); renderQuestionSets(); });
 }
-$('#qsToAI').onclick = () => { nav = 'ai'; renderChat(); ensureAuth().then(updateAuthBadge).catch(()=>{}); route(); };
+$('#qsToAI').onclick = () => goNav('ai');
 
 function assignQuiz(qsId) {
   const qs = qsets.find(x => x.id === qsId); if (!qs) return;
@@ -1370,7 +1370,7 @@ function openGame(type, qs) {
 $('#battleClose').onclick = () => { finishGameRun(); $('#battleWrap').classList.remove('show'); $('#battleFrame').onload = null; $('#battleFrame').src = 'about:blank'; document.body.style.overflow = ''; };
 
 
-/* ===================== AI / Auth (unchanged) ===================== */
+/* ===================== AI / Puter sign-in ===================== */
 const AI_MODEL = 'gpt-4o-mini', AI_FALLBACK = 'gpt-4o';
 let aiErrors = [];
 function logAIError(label, err, context) {
@@ -1388,7 +1388,7 @@ function renderAIErrors() {
 document.getElementById('aiErrorsToggle').onclick = () => { const p = document.getElementById('aiErrors'); p.hidden = !p.hidden; };
 document.getElementById('aiErrorsClear').onclick = () => { aiErrors = []; renderAIErrors(); };
 
-let authState = 'unknown', authLastReason = '', authInFlight = null, authPopupShown = false;
+let authState = 'unknown', authLastReason = '';   // 'signed' | 'none' (no real Puter account yet) | 'exhausted' | 'failed' | 'unknown'
 function isCreditsError(e) { if (!e) return false; const m = String(e.message || e.error || e || '').toLowerCase(); return m.includes('not enough credits') || m.includes('upgrade your plan'); }
 function isAuthError(e) { return e && (e.error === 'must_login_or_signup' || e.status === 401 || e.status === 403); }
 function describeAuthError(e) {
@@ -1411,36 +1411,79 @@ function showAuthPopup({ title, body, tone, actions }) {
 function closeAuthPopup() { const s = document.getElementById('authScrim'); if (s) s.classList.remove('show'); }
 document.getElementById('authScrim').addEventListener('click', e => { if (e.target.id === 'authScrim') closeAuthPopup(); });
 
-async function ensureAuth(opts = {}) {
-  const forceReal = !!opts.forceRealSignIn, silent = !!opts.silent;
-  if (authInFlight && !forceReal) return authInFlight;
-  authInFlight = (async () => {
-    if (!window.puter || !puter.auth) { authState = 'failed'; authLastReason = 'Puter.js not loaded.'; logAIError('Puter auth missing', new Error(authLastReason)); return false; }
-    try {
-      const si = await puter.auth.isSignedIn();
-      if (si) {
-        const user = await puter.auth.getUser().catch(() => null);
-        const isTemp = user && !user.email;
-        if (!(forceReal && isTemp)) { authState = isTemp ? 'temp' : 'signed'; authLastReason = ''; if (!forceReal) return true; }
-      }
-    } catch (e) {}
-    if (authState === 'exhausted' || forceReal) {
-      try { await puter.auth.signIn(); authState = 'signed'; authLastReason = ''; try { localStorage.removeItem('adminhub_auth_exhausted'); } catch (e) {} if (!silent) toast('Signed in'); return true; }
-      catch (e2) { authState = 'failed'; authLastReason = describeAuthError(e2); logAIError('Real sign-in failed', e2); return false; }
+// Only a real Puter account (signed in with Google or email) can use AI — guest sessions have no credits.
+const isRealPuterUser = u => !!u && (u.is_temp === false || (u.is_temp === undefined && !!u.email));
+async function checkPuter() {            // quiet check: never opens a window or popup
+  if (!window.puter || !puter.auth) { authState = 'failed'; authLastReason = 'Puter.js not loaded.'; updateAuthBadge(); return false; }
+  try {
+    if (await puter.auth.isSignedIn()) {
+      const user = await puter.auth.getUser().catch(() => null);
+      if (isRealPuterUser(user)) { if (authState !== 'exhausted') authState = 'signed'; updateAuthBadge(); updateLogoutVisibility(); return true; }
     }
-    try { await puter.auth.signIn({ attempt_temp_user_creation: true }); authState = 'temp'; authLastReason = ''; return true; }
-    catch (e) { authLastReason = describeAuthError(e); logAIError('Temp user creation failed', e); }
-    try { await puter.auth.signIn(); authState = 'signed'; authLastReason = ''; return true; }
-    catch (e2) { authState = 'failed'; authLastReason = describeAuthError(e2); logAIError('Sign-in failed', e2); return false; }
-  })();
-  try { return await authInFlight; } finally { authInFlight = null; updateAuthBadge(); updateLogoutVisibility(); }
+  } catch (e) {}
+  authState = 'none'; updateAuthBadge(); updateLogoutVisibility(); return false;
+}
+// Opens Puter's own sign-in window. Call it straight from a tap/click (no await before it), or browsers block the window.
+async function puterSignIn() {
+  if (!window.puter || !puter.auth) { toast('The AI service didn’t load. Check your internet and reload.'); return false; }
+  try { await puter.auth.signIn(); }
+  catch (e) { authLastReason = describeAuthError(e); logAIError('Puter sign-in failed', e); showPuterProblem('Sign-in didn’t finish', authLastReason); return false; }
+  if (await checkPuter()) {
+    toast('Signed in to Puter — you can make quizzes now!');
+    if (nav === 'ai' && chatFlow) sysSay('Signed in to Puter. Let’s make a quiz!');
+    return true;
+  }
+  showPuterProblem('Almost there', 'Puter signed you in as a guest, and guest accounts can’t use the AI. Choose “Continue with Google” (or create an account) in the Puter window.');
+  return false;
+}
+// Step-by-step help shown when a teacher opens AI Quiz without a Puter account.
+const PUTER_STEPS = [
+  { icon: 'bxs-bot', title: 'Turn on the AI quiz maker',
+    body: 'ClassQuiz uses <b>Puter</b>, a free AI service, to write your quizzes. You need a free Puter account — you only do this once.' },
+  { icon: 'bxl-google', title: 'Sign in with Google',
+    body: 'A Puter window will open. Tap <b>Continue with Google</b> and pick your account. (You can also create a Puter account with an email.)',
+    art: `<div class="pt-mock"><div class="pt-bar">puter.com</div><div class="pt-gbtn"><i class='bx bxl-google'></i> Continue with Google</div><div class="pt-or">or sign up with email</div></div>` },
+  { icon: 'bxs-phone', title: 'Verify your phone if asked',
+    body: 'Puter may ask for your <b>phone number</b> and text you a code. Type the code into the Puter window — it’s their check to stop spam. Not everyone gets asked.',
+    art: `<div class="pt-mock"><div class="pt-bar">puter.com</div><div class="pt-or" style="margin:0 0 8px">Enter the code we texted you</div><div class="pt-code"><span>4</span><span>8</span><span>1</span><span></span><span></span><span></span></div></div>` },
+  { icon: 'bxs-check-circle', title: 'Then come back here',
+    body: 'When you’re signed in, the Puter window closes by itself and you can start making quizzes. Tap <b>Open Puter sign-in</b> to begin.' }
+];
+let puterStep = 0;
+function showPuterTutorial(start) { puterStep = start || 0; paintPuterStep(); $('#authScrim').classList.add('show'); }
+function paintPuterStep() {
+  const st = PUTER_STEPS[puterStep], last = puterStep === PUTER_STEPS.length - 1;
+  $('#authModal').innerHTML = `<div class="pt">
+    <div class="pt-dots">${PUTER_STEPS.map((_, i) => `<i class="${i === puterStep ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="pt-icon"><i class='bx ${st.icon}'></i></div>
+    <small class="pt-step">Step ${puterStep + 1} of ${PUTER_STEPS.length}</small>
+    <h3>${st.title}</h3><p>${st.body}</p>${st.art || ''}
+    <div class="foot">${puterStep ? '<button class="btn ghost" data-pt="back">Back</button>' : '<button class="btn ghost" data-pt="close">Not now</button>'}
+      <button class="btn" data-pt="${last ? 'go' : 'next'}">${last ? 'Open Puter sign-in' : 'Next'}</button></div></div>`;
+  $('#authModal').querySelectorAll('[data-pt]').forEach(b => { b.onclick = () => {
+    const a = b.dataset.pt;
+    if (a === 'next') { puterStep++; paintPuterStep(); }
+    else if (a === 'back') { puterStep--; paintPuterStep(); }
+    else if (a === 'close') closeAuthPopup();
+    else { closeAuthPopup(); puterSignIn(); }        // straight from the tap, so the Puter window isn't blocked
+  }; });
+}
+function showPuterProblem(title, msg) {
+  $('#authModal').innerHTML = `<div class="pt"><div class="pt-icon warn"><i class='bx bx-error-circle'></i></div><h3>${esc(title)}</h3><p>${esc(msg)}</p>
+    <div class="foot"><button class="btn ghost" data-pp="steps">See the steps</button><button class="btn" data-pp="retry">Try again</button></div></div>`;
+  $('#authModal [data-pp="steps"]').onclick = () => showPuterTutorial(1);
+  $('#authModal [data-pp="retry"]').onclick = () => { closeAuthPopup(); puterSignIn(); };
+  $('#authScrim').classList.add('show');
+}
+function openAITab() {                   // AI Quiz page: show the Puter steps only if there's no Puter account yet
+  renderChat();
+  checkPuter().then(ok => { if (!ok && nav === 'ai' && authState === 'none') showPuterTutorial(); });
 }
 async function puterLogout() {
   if (authState !== 'signed') { toast('Logout only works for a full Puter account.'); return; }
   try {
     await puter.auth.signOut();
-    authState = 'unknown'; authLastReason = '';
-    try { localStorage.removeItem('adminhub_auth_exhausted'); } catch (e) {}
+    authState = 'none'; authLastReason = '';
     updateAuthBadge(); updateLogoutVisibility(); toast('Signed out of Puter.');
   } catch (e) { logAIError('Sign-out failed', e); toast('Could not sign out.'); }
 }
@@ -1449,10 +1492,10 @@ function updateAuthBadge() {
   const badge = document.getElementById('authBadge'), icon = document.getElementById('authIcon'), text = document.getElementById('authText');
   if (!badge || !icon || !text) return;
   badge.classList.remove('temp', 'signed', 'failed', 'exhausted', 'clickable'); badge.onclick = null;
-  if (authState === 'temp') { badge.classList.add('temp'); icon.className = 'bx bx-user-check'; text.textContent = 'Guest session'; }
-  else if (authState === 'signed') { badge.classList.add('signed'); icon.className = 'bx bx-check-circle'; text.textContent = 'Signed in'; }
-  else if (authState === 'exhausted') { badge.classList.add('exhausted', 'clickable'); icon.className = 'bx bx-error'; text.textContent = 'Out of credits'; badge.onclick = async () => { authState = 'unknown'; updateAuthBadge(); const ok = await ensureAuth({ forceRealSignIn: true }); if (ok) toast('Signed in.'); }; }
-  else if (authState === 'failed') { badge.classList.add('failed'); icon.className = 'bx bx-error-circle'; text.textContent = 'Auth failed'; }
+  if (authState === 'signed') { badge.classList.add('signed'); icon.className = 'bx bx-check-circle'; text.textContent = 'Signed in to Puter'; }
+  else if (authState === 'none') { badge.classList.add('temp', 'clickable'); icon.className = 'bx bx-log-in'; text.textContent = 'Sign in to use AI'; badge.onclick = () => showPuterTutorial(); }
+  else if (authState === 'exhausted') { badge.classList.add('exhausted', 'clickable'); icon.className = 'bx bx-error'; text.textContent = 'Out of AI credits'; badge.onclick = () => window.open('https://puter.com/', '_blank'); }
+  else if (authState === 'failed') { badge.classList.add('failed', 'clickable'); icon.className = 'bx bx-error-circle'; text.textContent = 'AI unavailable'; badge.onclick = () => checkPuter(); }
   else { icon.className = 'bx bx-loader-alt spin'; text.textContent = 'Checking…'; }
 }
 
@@ -1521,7 +1564,9 @@ async function generateFromFlow() {
   setWaiting(true); sysSay('Generating ' + chatFlow.count + ' ' + chatFlow.difficulty + ' questions…');
   const prompt = AI_PROMPT(chatFlow.count, chatFlow.topic + ' · grade ' + chatFlow.grade + ' · ' + chatFlow.difficulty, chatFlow.notes);
   let raw = '';
-  try { raw = await aiChat(prompt); } catch (e) { logAIError('AI request failed', e); botSay('AI request failed. See Errors panel.'); setWaiting(false); chatFlow.step = 'difficulty'; updateChips(); return; }
+  try { raw = await aiChat(prompt); } catch (e) {
+    if (e.noPuter) botSay(authState === 'exhausted' ? 'No AI credits left right now.' : 'Sign in to Puter first (follow the steps), then send your answer again.');
+    else { logAIError('AI request failed', e); botSay('AI request failed. See Errors panel.'); } setWaiting(false); chatFlow.step = 'difficulty'; updateChips(); return; }
   let data = null; try { data = parseQuizJSON(raw); } catch (e) {}
   if (!data || !data.questions.length) { logAIError('Bad JSON', new Error('No questions'), raw.slice(0, 400)); botSay('Invalid JSON. Try again.'); setWaiting(false); chatFlow.step = 'difficulty'; updateChips(); return; }
   data.title = data.title || chatFlow.topic || 'Quiz';
@@ -1530,13 +1575,12 @@ async function generateFromFlow() {
   setWaiting(false); chatFlow.step = 'done'; updateChips();
 }
 async function aiChat(prompt) {
-  const ok = await ensureAuth(); if (!ok) { const e = new Error('Auth failed'); logAIError('AI blocked: no auth', e); throw e; }
+  if (authState !== 'signed' && !(await checkPuter())) { showPuterTutorial(); const e = new Error('Not signed in to Puter'); e.noPuter = true; throw e; }
   async function attempt(model) { const res = await puter.ai.chat(prompt, { model }); return normalizePuter(res); }
   try { return await attempt(AI_MODEL); }
   catch (e) {
-    if (isCreditsError(e) && authState === 'temp') { authState = 'exhausted'; updateAuthBadge(); botSay("Guest accounts have no AI credits. Sign in to generate."); throw e; }
-    if (isCreditsError(e)) { botSay("Out of credits. Top up at puter.com/#billing."); throw e; }
-    if (isAuthError(e)) { authState = 'unknown'; if (await ensureAuth()) { try { return await attempt(AI_MODEL); } catch (e2) {} } }
+    if (isCreditsError(e)) { authState = 'exhausted'; updateAuthBadge(); botSay('Your Puter account is out of AI credits. Add more at puter.com, or try again later.'); e.noPuter = true; throw e; }
+    if (isAuthError(e)) { authState = 'none'; updateAuthBadge(); showPuterTutorial(); e.noPuter = true; throw e; }
     logAIError('Primary failed', e);
   }
   return await attempt(AI_FALLBACK);
@@ -1574,20 +1618,6 @@ document.querySelectorAll('#sidebar .side-menu.top li a').forEach(a => a.addEven
 })();
 document.getElementById('puterLogout').addEventListener('click', e => { e.preventDefault(); puterLogout(); });
 
-async function bootSession() {
-  const exh = (() => { try { return localStorage.getItem('adminhub_auth_exhausted') === '1'; } catch (e) { return false; } })();
-  if (exh) { authState = 'exhausted'; updateAuthBadge(); updateLogoutVisibility(); return; }
-  authState = 'unknown'; updateAuthBadge();
-  const ok = await ensureAuth();
-  if (ok && authState === 'temp' && !authPopupShown) {
-    authPopupShown = true;
-    showAuthPopup({ title: 'Guest session ready', body: 'Everything works except the AI quiz generator. Sign in with a real Puter account for AI.', tone: 'warn', actions: [{ label: 'Continue as guest', onClick: closeAuthPopup }, { label: 'Sign in for AI', kind: 'ghost', onClick: async () => { authState = 'unknown'; updateAuthBadge(); await ensureAuth({ forceRealSignIn: true }); } }] });
-  } else if (ok && authState === 'signed' && !authPopupShown) {
-    authPopupShown = true;
-    showAuthPopup({ title: 'Signed in', body: 'AI quiz generation is enabled.', tone: 'ok', actions: [{ label: 'Got it', onClick: closeAuthPopup }] });
-  }
-  updateAuthBadge(); updateLogoutVisibility();
-}
 
 /* ===================== Cloud sync (Firebase, via data.js) ===================== */
 function saveRemote() {
@@ -1676,6 +1706,6 @@ updateAuthBadge();
 updateLogoutVisibility();
 updateStudentSidebarExtras();
 paintAvatar();
-bootSession();
+if (uiMode === 'teacher') checkPuter();   // quiet: only sets the AI badge, never opens a window
 cloudPublishSoon();
 cloudWatchStudent();
