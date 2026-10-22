@@ -523,3 +523,23 @@ main{padding:28px 24px;color:var(--dark)}
   .bottombar button .bx{font-size:23px}
   .bottombar button.on{color:var(--blue)}
 }
+
+/* ===== Puter sign-in tutorial ===== */
+.pt{text-align:center}
+.pt h3{margin:4px 0 8px;font-size:20px}
+.pt p{color:var(--dark);font-size:15px;line-height:1.5;margin-bottom:14px}
+.pt .foot{justify-content:space-between}
+.pt-dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px}
+.pt-dots i{width:8px;height:8px;border-radius:50%;background:var(--grey)}
+.pt-dots i.on{background:var(--blue);width:22px;border-radius:6px}
+.pt-icon{width:64px;height:64px;margin:0 auto 8px;border-radius:50%;background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:34px}
+.pt-icon.warn{background:#fff6d6;color:#d89e00}
+.pt-step{color:var(--dark-grey);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.pt-mock{border:1px solid #ddd;border-radius:12px;background:#fff;padding:0 16px 16px;margin:0 auto 16px;max-width:300px;overflow:hidden;text-align:center}
+.pt-bar{margin:0 -16px 14px;padding:6px 10px;background:var(--grey);color:var(--dark-grey);font-size:12px;text-align:left}
+.pt-gbtn{display:flex;align-items:center;justify-content:center;gap:8px;border:2px solid var(--blue);border-radius:8px;padding:10px;font-weight:600;color:var(--dark);box-shadow:0 0 0 4px var(--light-blue)}
+.pt-gbtn .bx{font-size:20px;color:#DB4437}
+.pt-or{color:var(--dark-grey);font-size:12px;margin-top:10px}
+.pt-code{display:flex;gap:6px;justify-content:center}
+.pt-code span{width:30px;height:38px;border:2px solid #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:var(--dark)}
+.pt-code span:empty{border-color:var(--blue)}
