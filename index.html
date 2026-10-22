@@ -16,7 +16,7 @@ window.addEventListener('load', function () {
   }
 });
 </script>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2">
   <meta property="og:image" content="https://bolt.new/static/og_default.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
@@ -189,8 +189,9 @@ window.addEventListener('load', function () {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="auth.js"></script>
-<script src="data.js"></script>
+<!-- bump ?v= on these (and app.js in data.js) after changing them, so browsers skip their old cached copy -->
+<script src="auth.js?v=2"></script>
+<script src="data.js?v=2"></script>
 <!-- data.js loads app.js after sign-in -->
 </body>
 </html>

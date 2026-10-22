@@ -17,7 +17,8 @@ window.Cloud = (function () {
     publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop,
     watchClass: off, watchStudents: off, watchScores: off
   };
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s); };
+  // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=2'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
