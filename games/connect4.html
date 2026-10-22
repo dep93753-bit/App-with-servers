@@ -78,6 +78,8 @@ button.btn:focus-visible,select:focus-visible,.col:focus-visible{outline:3px sol
 <div class="bar">
   <div class="chip"><i style="background:var(--me)"></i>You <span id="sh">0</span></div>
   <div class="chip"><i style="background:var(--bot)"></i>Robot <span id="sa">0</span></div>
+  <div class="chip">Moves <span id="am">0</span></div>
+  <div class="chip">Strikes <span id="wr">0</span>/3</div>
 </div>
 <div id="status" aria-live="polite"></div>
 
@@ -108,11 +110,22 @@ button.btn:focus-visible,select:focus-visible,.col:focus-visible{outline:3px sol
   </label>
 </div>
 
+<script src="quiz-modal.js"></script>
 <script>
 const R=6,C=7,H=1,A=2,ORDER=[3,2,4,1,5,0,6];
 const $=s=>document.querySelector(s), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hand=$('#hand'),discs=$('#discs'),statusEl=$('#status');
-let g,over,busy,handCol=3,ghost,sc={h:0,a:0};
+let g,over,busy,handCol=3,ghost,sc={h:0,a:0},won=false;
+
+/* Each disc you drop uses 1 "move". At 0 moves you answer a question to get more; 3 wrong answers = game over. */
+const KIT=GameKit({id:'connect4',ammo:6,gainCorrect:5,gainWrong:1,maxWrong:3,onUpdate:hud,
+  getScore:()=>won?100+5*g.flat().filter(v=>!v).length:0,restart:newGame});
+function hud(){$('#am').textContent=KIT.ammo;$('#wr').textContent=KIT.wrong;}
+function needMoves(){                     // out of moves: ask a question before the next turn
+  if(KIT.ammo>0||over)return;
+  busy=true;say('Out of moves — answer a question!');
+  KIT.ask(()=>{busy=false;say('Your turn — pick a column.');});
+}
 
 /* ---------- game logic ---------- */
 const drop=(b,c,p)=>{for(let r=R-1;r>=0;r--)if(!b[r][c]){b[r][c]=p;return r}return -1};
@@ -189,21 +202,25 @@ function finish(p,r,c){
       const col=+d.style.getPropertyValue('--col'),row=+d.style.getPropertyValue('--row');
       if(w.some(([y,x])=>y===row&&x===col))d.classList.add('win');
     });
-    if(p===H){sc.h++;say('You win! Nice one.')} else {sc.a++;say('The robot wins this round.')}
+    if(p===H){sc.h++;won=true;say('You win! Nice one.')} else {sc.a++;say('The robot wins this round.')}
     $('#sh').textContent=sc.h;$('#sa').textContent=sc.a;
+    setTimeout(()=>KIT.end(p===H),1400);   // shows the result and sends the score to the app
     return true;
   }
-  if(g[0].every(Boolean)){over=true;say('Draw — the board is full.');return true}
+  if(g[0].every(Boolean)){over=true;say('Draw — the board is full.');setTimeout(()=>KIT.end(false),1400);return true}
   return false;
 }
 
 async function humanMove(c){
   if(busy||over||g[0][c])return;
+  if(KIT.ammo<=0){needMoves();return}
   busy=true; ghost.style.display='none';
+  KIT.ammo--;hud();
   const r=drop(g,c,H), d=makeDisc(H,c,-1);
   await fall(d,r);
   if(!finish(H,r,c))await robotTurn();
   busy=false;
+  needMoves();
 }
 async function robotTurn(){
   say('Robot is thinking…'); hand.classList.add('think');
@@ -225,7 +242,7 @@ async function robotTurn(){
 
 function newGame(){
   g=Array.from({length:R},()=>Array(C).fill(0));
-  over=false;busy=false;discs.innerHTML='';
+  over=false;busy=false;won=false;discs.innerHTML='';hud();
   hand.classList.add('open');hand.classList.remove('think');setHand(3);
   ghost=makeDisc(H,3,-1,'ghost');ghost.style.display='none';
   say('Your turn — pick a column.');

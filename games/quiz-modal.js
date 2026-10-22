@@ -55,7 +55,7 @@ function makeQuizModal(opts) {
 
 
 /* ===== GameKit — shared "moves run out → answer a question → get more" plumbing =====
-   Used by Tetris, Block Blast and Match-3. Each game gives it: id, starting ammo, ammo per right/wrong
+   Used by Tetris, Block Blast, Match-3, Checkers and Connect 4. Each game gives it: id, starting ammo, ammo per right/wrong
    answer, how many wrong answers lose the game, and three callbacks (onUpdate, getScore, restart). */
 (function () {
   var st = document.createElement('style');

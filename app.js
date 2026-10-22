@@ -1099,8 +1099,10 @@ const GAMES = [
   { id: 'tetris',     name: 'Tetris',         icon: 'bxs-extension', color: '#e11d48', file: 'games/tetris.html' },
   { id: 'blockblast', name: 'Block Blast',    icon: 'bxs-cube',   color: '#ea580c', file: 'games/blockblast.html' },
   { id: 'match3',     name: 'Match 3',        icon: 'bxs-diamond', color: '#db2777', file: 'games/match3.html' },
+  { id: 'checkers',   name: 'Checkers',       icon: 'bxs-crown',  color: '#b45309', file: 'games/checkers.html' },
+  { id: 'connect4',   name: 'Connect 4',      icon: 'bxs-grid-alt', color: '#4b3fd0', file: 'games/connect4.html' },
 ];
-const GAME_DESC = { battleship: 'Sink the enemy fleet', bubble: 'Match and pop bubbles', asteroids: 'Blast the space rocks', tetris: 'Stack blocks, clear lines', blockblast: 'Pop same-color groups', match3: 'Swap tiles to match 3' };
+const GAME_DESC = { battleship: 'Sink the enemy fleet', bubble: 'Match and pop bubbles', asteroids: 'Blast the space rocks', tetris: 'Stack blocks, clear lines', blockblast: 'Pop same-color groups', match3: 'Swap tiles to match 3', checkers: 'Jump and capture the robot', connect4: 'Get four in a row' };
 const gameBtns = (attr, id) => `<button class="playbtn browse" data-browse="${id}"><i class='bx bxs-joystick'></i> Browse games</button>`;
 function openGamePicker(quizId) {
   openModal(`<h3>Pick a game</h3><p class="sub">Every game uses the same questions.</p>
