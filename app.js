@@ -751,16 +751,16 @@ function addQuestionSet(set) {
 }
 
 const PRESET_QUESTIONS = [
-  { question: "Which planet is known as the Red Planet?", options: ["Venus","Mars","Jupiter","Mercury"], correct: 1, timeLimit: 20, explanation: "Iron oxide on Mars gives it a red color." },
-  { question: "What is the largest ocean on Earth?", options: ["Atlantic","Indian","Arctic","Pacific"], correct: 3, timeLimit: 20, explanation: "The Pacific covers about a third of the planet." },
-  { question: "How many continents are there?", options: ["5","6","7","8"], correct: 2, timeLimit: 15, explanation: "Africa, Antarctica, Asia, Australia, Europe, N. America, S. America." },
-  { question: "Who wrote Romeo and Juliet?", options: ["Charles Dickens","William Shakespeare","Jane Austen","Mark Twain"], correct: 1, timeLimit: 20, explanation: "Shakespeare wrote it around 1595." },
-  { question: "What gas do plants absorb from the air?", options: ["Oxygen","Nitrogen","Carbon dioxide","Hydrogen"], correct: 2, timeLimit: 20, explanation: "Plants take in CO2 for photosynthesis." },
-  { question: "What is the capital of France?", options: ["Lyon","Marseille","Paris","Nice"], correct: 2, timeLimit: 15, explanation: "Paris has been the capital since the 10th century." },
-  { question: "Which is the longest river in the world?", options: ["Amazon","Nile","Yangtze","Mississippi"], correct: 1, timeLimit: 25, explanation: "The Nile is traditionally measured as the longest." },
-  { question: "What is 7 × 8?", options: ["54","56","58","64"], correct: 1, timeLimit: 10, explanation: "7 × 8 = 56." },
-  { question: "Which animal is the largest mammal?", options: ["Elephant","Blue whale","Giraffe","Hippopotamus"], correct: 1, timeLimit: 15, explanation: "Blue whales can reach 30 meters." },
-  { question: "In which year did WWII end?", options: ["1943","1944","1945","1946"], correct: 2, timeLimit: 20, explanation: "WWII ended in 1945." }
+  { question: "Which planet is known as the Red Planet?", options: ["Venus","Mars","Jupiter","Mercury"], correct: 1, timeLimit: 20, explanation: "Iron oxide on Mars gives it a red color.", hangmanClue: "The planet closest to the Sun", hangmanAnswer: "Mercury" },
+  { question: "What is the largest ocean on Earth?", options: ["Atlantic","Indian","Arctic","Pacific"], correct: 3, timeLimit: 20, explanation: "The Pacific covers about a third of the planet.", hangmanClue: "The ocean between the Americas and Europe", hangmanAnswer: "Atlantic" },
+  { question: "How many continents are there?", options: ["5","6","7","8"], correct: 2, timeLimit: 15, explanation: "Africa, Antarctica, Asia, Australia, Europe, N. America, S. America.", hangmanClue: "The continent where penguins live", hangmanAnswer: "Antarctica" },
+  { question: "Who wrote Romeo and Juliet?", options: ["Charles Dickens","William Shakespeare","Jane Austen","Mark Twain"], correct: 1, timeLimit: 20, explanation: "Shakespeare wrote it around 1595.", hangmanClue: "The author of The Adventures of Tom Sawyer", hangmanAnswer: "Mark Twain" },
+  { question: "What gas do plants absorb from the air?", options: ["Oxygen","Nitrogen","Carbon dioxide","Hydrogen"], correct: 2, timeLimit: 20, explanation: "Plants take in CO2 for photosynthesis.", hangmanClue: "The process plants use to make food from sunlight", hangmanAnswer: "Photosynthesis" },
+  { question: "What is the capital of France?", options: ["Lyon","Marseille","Paris","Nice"], correct: 2, timeLimit: 15, explanation: "Paris has been the capital since the 10th century.", hangmanClue: "The capital city of Italy", hangmanAnswer: "Rome" },
+  { question: "Which is the longest river in the world?", options: ["Amazon","Nile","Yangtze","Mississippi"], correct: 1, timeLimit: 25, explanation: "The Nile is traditionally measured as the longest.", hangmanClue: "The biggest rainforest river in South America", hangmanAnswer: "Amazon" },
+  { question: "What is 7 × 8?", options: ["54","56","58","64"], correct: 1, timeLimit: 10, explanation: "7 × 8 = 56.", hangmanClue: "9 times 9", hangmanAnswer: "81" },
+  { question: "Which animal is the largest mammal?", options: ["Elephant","Blue whale","Giraffe","Hippopotamus"], correct: 1, timeLimit: 15, explanation: "Blue whales can reach 30 meters.", hangmanClue: "The tallest animal on land", hangmanAnswer: "Giraffe" },
+  { question: "In which year did WWII end?", options: ["1943","1944","1945","1946"], correct: 2, timeLimit: 20, explanation: "WWII ended in 1945.", hangmanClue: "The president during the Civil War", hangmanAnswer: "Abraham Lincoln" }
 ];
 
 /* ===================== Questions view (teacher) ===================== */
@@ -1101,8 +1101,9 @@ const GAMES = [
   { id: 'match3',     name: 'Match 3',        icon: 'bxs-diamond', color: '#db2777', file: 'games/match3.html' },
   { id: 'checkers',   name: 'Checkers',       icon: 'bxs-crown',  color: '#b45309', file: 'games/checkers.html' },
   { id: 'connect4',   name: 'Connect 4',      icon: 'bxs-grid-alt', color: '#4b3fd0', file: 'games/connect4.html' },
+  { id: 'hangman',    name: 'Hangman',        icon: 'bxs-pencil', color: '#ca8a04', file: 'games/hangman.html' },
 ];
-const GAME_DESC = { battleship: 'Sink the enemy fleet', bubble: 'Match and pop bubbles', asteroids: 'Blast the space rocks', tetris: 'Stack blocks, clear lines', blockblast: 'Pop same-color groups', match3: 'Swap tiles to match 3', checkers: 'Jump and capture the robot', connect4: 'Get four in a row' };
+const GAME_DESC = { battleship: 'Sink the enemy fleet', bubble: 'Match and pop bubbles', asteroids: 'Blast the space rocks', tetris: 'Stack blocks, clear lines', blockblast: 'Pop same-color groups', match3: 'Swap tiles to match 3', checkers: 'Jump and capture the robot', connect4: 'Get four in a row', hangman: 'Guess the word from a clue' };
 const gameBtns = (attr, id) => `<button class="playbtn browse" data-browse="${id}"><i class='bx bxs-joystick'></i> Browse games</button>`;
 function openGamePicker(quizId) {
   openModal(`<h3>Pick a game</h3><p class="sub">Every game uses the same questions.</p>
@@ -1214,8 +1215,11 @@ function updateAuthBadge() {
 }
 
 const AI_PROMPT = (n, topic, notes) => `You are a quiz generator. Return ONLY valid JSON. No prose, no markdown.
-Shape: {"title":"...","questions":[{"question":"...","options":["A","B","C","D"],"correct":0,"timeLimit":20,"explanation":"..."}]}
-Make EXACTLY ${n} questions. Topic: ${topic}. Notes: ${notes || '(none)'}.`;
+Shape: {"title":"...","questions":[{"question":"...","options":["A","B","C","D"],"correct":0,"timeLimit":20,"explanation":"...","hangmanClue":"...","hangmanAnswer":"..."}]}
+Make EXACTLY ${n} questions. Topic: ${topic}. Notes: ${notes || '(none)'}.
+Every question ALSO needs a separate Hangman puzzle on the same topic (used only by the Hangman game, never shown with the multiple-choice question):
+- "hangmanClue": a short clue or fill-in prompt, different from the multiple-choice question.
+- "hangmanAnswer": the answer to that clue, 1 to 3 words (5 words absolute max, 25 letters max), letters and numbers only, no punctuation. Example: {"hangmanClue":"He was president during the Civil War","hangmanAnswer":"Abraham Lincoln"}.`;
 const FLOW_ORDER = ['topic', 'grade', 'count', 'difficulty'];
 const FLOW_QUESTIONS = { topic: 'What is your set topic?', grade: 'What grade level?', count: 'How many questions? (1–100)', difficulty: 'Difficulty? Easy, Medium, or Hard.' };
 const FLOW_RETRIES = { topic: 'Try something like "dinosaur questions" or "photosynthesis".', grade: 'Just a grade — "3rd grade", "7th", "high school".', count: 'A number between 1 and 100.', difficulty: 'Pick one: Easy, Medium, or Hard.' };
@@ -1302,13 +1306,20 @@ function normalizePuter(res) {
   if (res && res.error) throw new Error('Puter error: ' + (res.error.message || JSON.stringify(res.error)));
   throw new Error('Unknown shape: ' + JSON.stringify(res).slice(0, 300));
 }
+// Hangman's own clue + short answer (kept only if the answer is really short: max 5 words / 30 characters)
+function hangmanFields(q) {
+  const clue = typeof q.hangmanClue === 'string' ? q.hangmanClue.trim() : '';
+  const ans = typeof q.hangmanAnswer === 'string' ? q.hangmanAnswer.replace(/[^A-Za-z0-9' -]/g, '').replace(/\s+/g, ' ').trim() : '';
+  if (!clue || !ans || ans.length > 30 || ans.split(' ').length > 5) return {};
+  return { hangmanClue: clue, hangmanAnswer: ans };
+}
 function parseQuizJSON(raw) {
   if (!raw) return null;
   let s = String(raw).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
   const f = s.indexOf('{'), l = s.lastIndexOf('}'); if (f === -1 || l === -1) return null;
   let obj; try { obj = JSON.parse(s.slice(f, l + 1)); } catch (e) { return null; }
   if (!obj || !Array.isArray(obj.questions)) return null;
-  obj.questions = obj.questions.filter(q => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length === 4 && q.options.every(o => typeof o === 'string' && o.length) && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < 4).map(q => ({ question: q.question, options: q.options.slice(0, 4), correct: q.correct, timeLimit: Number.isFinite(q.timeLimit) ? q.timeLimit : 20, explanation: typeof q.explanation === 'string' ? q.explanation : '' }));
+  obj.questions = obj.questions.filter(q => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length === 4 && q.options.every(o => typeof o === 'string' && o.length) && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < 4).map(q => ({ question: q.question, options: q.options.slice(0, 4), correct: q.correct, timeLimit: Number.isFinite(q.timeLimit) ? q.timeLimit : 20, explanation: typeof q.explanation === 'string' ? q.explanation : '', ...hangmanFields(q) }));
   return obj;
 }
 
@@ -1316,6 +1327,8 @@ function parseQuizJSON(raw) {
 document.querySelectorAll('#sidebar .side-menu.top li a').forEach(a => a.addEventListener('click', e => e.preventDefault()));
 (function ensurePreset() {
   if (!qsets.some(q => q.id === 'qs_preset')) { qsets.push({ id: 'qs_preset', title: 'Preset Quiz', created: Date.now(), questions: PRESET_QUESTIONS, source: 'preset' }); saveQSets(); }
+  const pre = qsets.find(q => q.id === 'qs_preset');   // older saved copies of the preset don't have Hangman clues yet
+  if (pre && pre.source === 'preset' && !pre.questions.some(q => q.hangmanAnswer)) { pre.questions = PRESET_QUESTIONS; saveQSets(); }
 })();
 document.getElementById('puterLogout').addEventListener('click', e => { e.preventDefault(); puterLogout(); });
 
