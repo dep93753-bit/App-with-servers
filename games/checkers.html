@@ -47,7 +47,7 @@ h1{color:#2a2118}.pl,#status,select,.ctl button,#ov button{background:#fff8e6!im
 <h1>Checkers<span>human vs robot</span></h1>
 <div class="pl r"><svg class="rob" id="rob" viewBox="0 0 64 64" width="42" height="42"><path d="M32 4v10" stroke="#8aa0b3" stroke-width="3"/><circle cx="32" cy="5" r="4" fill="#3ee6ff"/><rect x="8" y="14" width="48" height="40" rx="12" fill="#cfd9e3" stroke="#33414f" stroke-width="3"/><rect x="14" y="24" width="36" height="18" rx="9" fill="#17212b"/><circle class="ey" cx="25" cy="33" r="4.5" fill="#3ee6ff"/><circle class="ey" cx="39" cy="33" r="4.5" fill="#3ee6ff"/><rect x="22" y="46" width="20" height="3" rx="1.5" fill="#33414f"/></svg><div><b>RX‑9</b><small id="na">12 pieces</small></div></div></header>
 <div id="status">Your move</div>
-<div id="hud">Moves <b id="am">0</b> · Strikes <b id="wr">0</b>/3</div>
+<div id="hud">Question in <b id="am">3</b> moves</div>
 <div class="frame"><div id="board"><div id="hl"></div><div id="pieces"></div></div></div>
 <div class="ctl"><select id="lv"><option value="2">Easy</option><option value="4" selected>Medium</option><option value="6">Hard</option></select><button id="nw">New game</button></div>
 </main>
@@ -65,10 +65,11 @@ let cand=null, kk=1, cur=-1, q=0;
 const ps=new Map();
 let hintTimer=null;
 
-/* Each of your moves uses 1 "move". At 0 moves you answer a question to get more; 3 wrong answers = game over. */
-const KIT=GameKit({id:'checkers',ammo:8,gainCorrect:6,gainWrong:1,maxWrong:3,onUpdate:hud,
+/* A question pops up every 3 of your moves. A wrong answer gives no moves, so a different
+   question comes up right away — keep going until you get one right. */
+const KIT=GameKit({id:'checkers',ammo:3,gainCorrect:3,gainWrong:0,maxWrong:Infinity,onUpdate:hud,
   getScore:()=>(12-b.filter(v=>v<0).length)*100,restart:newGame});
-function hud(){$('#am').textContent=KIT.ammo;$('#wr').textContent=KIT.wrong;}
+function hud(){$('#am').textContent=KIT.ammo;}
 
 /* ---------------- rules ---------------- */
 const dirs=v=>Math.abs(v)==2?[[1,1],[1,-1],[-1,1],[-1,-1]]:v>0?[[-1,1],[-1,-1]]:[[1,1],[1,-1]];
@@ -245,7 +246,7 @@ function startHuman(){
   $('#rob').classList.remove('think');
   if(!legal.length){ end('RX‑9 wins!'); return; }
   if(KIT.ammo<=0){
-    busy=true;mark();status('Out of moves — answer a question!');
+    busy=true;mark();status(KIT.answers.length&&!KIT.answers[KIT.answers.length-1].correct?'Not quite — try this one!':'Question time!');
     KIT.ask(startHuman);
     return;
   }
