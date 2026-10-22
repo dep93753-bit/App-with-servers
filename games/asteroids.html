@@ -434,10 +434,10 @@ function rgb(c,a){return "rgba("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+","+(a===und
 function makeAsteroid(size,x,y,vx,vy){
   var cfg=AST_CFG[size];
   var pts=[];
-  var n=8+Math.floor(Math.random()*4);
+  var n=9+Math.floor(Math.random()*4);
   for(var i=0;i<n;i++){
-    var a=(i/n)*Math.PI*2;
-    var r=cfg.r*(0.68+Math.random()*0.42);
+    var a=(i/n)*Math.PI*2+(Math.random()-0.5)*0.25;
+    var r=cfg.r*(0.8+Math.random()*0.26);
     pts.push({a:a,r:r,x:Math.cos(a)*r,y:Math.sin(a)*r});
   }
   var craters=[];
@@ -460,6 +460,7 @@ function makeAsteroid(size,x,y,vx,vy){
     rotSpd:(Math.random()-0.5)*1.4,
     pts:pts,craters:craters,facets:facets,
     pal:Math.floor(Math.random()*PALS.length),
+    specks:(function(){var sp=[];for(var k=0;k<(size==="small"?3:size==="medium"?5:8);k++)sp.push({x:rnd(-cfg.r*0.6,cfg.r*0.6),y:rnd(-cfg.r*0.6,cfg.r*0.6),r:rnd(0.8,1.8)});return sp;})(),
     flashing:0
   };
 }
@@ -1182,56 +1183,75 @@ function tracePoly(pts){
   }
   ctx.closePath();
 }
+/* smooth lumpy outline through the rock's points (scaled + shifted for the shading layers) */
+function rockPath(pts,k,ox,oy){
+  k=k||1;ox=ox||0;oy=oy||0;
+  var n=pts.length;
+  ctx.beginPath();
+  for(var i=0;i<=n;i++){
+    var a=pts[i%n],b=pts[(i+1)%n];
+    var mx=(a.x+b.x)/2*k+ox,my=(a.y+b.y)/2*k+oy;
+    if(i===0)ctx.moveTo(mx,my);else ctx.quadraticCurveTo(a.x*k+ox,a.y*k+oy,mx,my);
+  }
+  ctx.closePath();
+}
 function drawAsteroid(a){
-  var pal=PALS[a.pal];
-  /* hard shadow stays below-right while the rock spins */
+  var pal=PALS[a.pal],r=a.r;
+  /* light always comes from the top-left, so turn that direction into the rock's spinning frame */
+  var c=Math.cos(-a.rot),sn=Math.sin(-a.rot);
+  function lx(x,y){return x*c-y*sn;} function ly(x,y){return x*sn+y*c;}
+
+  /* hard shadow below-right */
   ctx.save();ctx.translate(a.x+4,a.y+5);ctx.rotate(a.rot);
-  tracePoly(a.pts);ctx.fillStyle=SHADOW;ctx.fill();
+  rockPath(a.pts);ctx.fillStyle=SHADOW;ctx.fill();
   ctx.restore();
 
   ctx.save();ctx.translate(a.x,a.y);ctx.rotate(a.rot);
-  tracePoly(a.pts);ctx.fillStyle=rgb(pal.mid);ctx.fill();
-
+  rockPath(a.pts);ctx.fillStyle=rgb(pal.dark);ctx.fill();          /* base = shadow color */
   ctx.save();ctx.clip();
-  /* flat light side and dark side */
-  ctx.rotate(-a.rot);
-  ctx.fillStyle=rgb(pal.hi);
-  ctx.beginPath();ctx.arc(-a.r*0.35,-a.r*0.35,a.r*0.75,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=rgb(pal.dark,0.55);
-  ctx.beginPath();ctx.arc(a.r*0.55,a.r*0.6,a.r*0.8,0,Math.PI*2);ctx.fill();
-  ctx.rotate(a.rot);
-  /* ink crack lines */
-  ctx.strokeStyle=INK;ctx.lineWidth=1.6;ctx.lineCap="round";
-  ctx.beginPath();
-  for(var f=0;f<a.facets.length;f++){
-    ctx.moveTo(a.facets[f].x1*0.7,a.facets[f].y1*0.7);
-    ctx.lineTo(a.facets[f].x2*0.7,a.facets[f].y2*0.7);
-  }
-  ctx.globalAlpha=0.45;ctx.stroke();ctx.globalAlpha=1;
-  /* craters: dark bowl with an ink rim */
-  for(var c=0;c<a.craters.length;c++){
-    var cr=a.craters[c];
-    ctx.beginPath();ctx.arc(cr.x,cr.y,cr.r,0,Math.PI*2);
+  /* mid tone: same shape nudged toward the light -> dark rim on the bottom-right */
+  rockPath(a.pts,0.94,lx(-r*0.12,-r*0.12),ly(-r*0.12,-r*0.12));ctx.fillStyle=rgb(pal.mid);ctx.fill();
+  /* lit face toward the top-left */
+  rockPath(a.pts,0.58,lx(-r*0.24,-r*0.26),ly(-r*0.24,-r*0.26));ctx.fillStyle=rgb(pal.hi);ctx.fill();
+
+  /* speckles */
+  ctx.fillStyle=rgb(pal.dark,0.7);
+  for(var k=0;k<a.specks.length;k++){var sp=a.specks[k];ctx.beginPath();ctx.arc(sp.x,sp.y,sp.r,0,Math.PI*2);ctx.fill();}
+
+  /* craters: dark bowl, lit lower-right rim, ink edge on the shadowed upper-left */
+  for(var q=0;q<a.craters.length;q++){
+    var cr=a.craters[q];
+    ctx.beginPath();ctx.ellipse(cr.x,cr.y,cr.r,cr.r*0.85,0,0,Math.PI*2);
     ctx.fillStyle=rgb(pal.dark);ctx.fill();
     ctx.lineWidth=1.8;ctx.strokeStyle=INK;ctx.stroke();
+    var la=Math.atan2(ly(1,1),lx(1,1));               /* direction of the lit rim */
+    ctx.beginPath();ctx.arc(cr.x,cr.y,cr.r*0.72,la-1.1,la+1.1);
+    ctx.lineWidth=Math.max(1.5,cr.r*0.35);ctx.lineCap="round";ctx.strokeStyle=rgb(pal.hi);ctx.stroke();
   }
+
+  ctx.restore();
+
+  /* shine mark */
+  ctx.save();ctx.rotate(-a.rot);
+  ctx.strokeStyle="rgba(255,255,255,0.75)";ctx.lineWidth=Math.max(2,r*0.09);ctx.lineCap="round";
+  ctx.beginPath();ctx.arc(-r*0.05,-r*0.05,r*0.62,Math.PI*1.12,Math.PI*1.38);ctx.stroke();
   ctx.restore();
 
   /* hit flash */
   if(a.flashing>0){
     ctx.globalAlpha=Math.min(0.85,a.flashing/0.09*0.85);
-    tracePoly(a.pts);ctx.fillStyle="#fff8e6";ctx.fill();
+    rockPath(a.pts);ctx.fillStyle="#fff8e6";ctx.fill();
     ctx.globalAlpha=1;
   }
 
   /* thick ink outline */
-  tracePoly(a.pts);
-  ctx.lineJoin="round";ctx.strokeStyle=INK;ctx.lineWidth=a.size==="small"?2.5:3.2;ctx.stroke();
+  rockPath(a.pts);
+  ctx.lineJoin="round";ctx.strokeStyle=INK;ctx.lineWidth=a.size==="small"?2.6:3.4;ctx.stroke();
 
-  /* hp pips for medium/large */
+  /* hp bar for medium/large */
   if(a.maxHp>1&&a.hp<a.maxHp){
     ctx.rotate(-a.rot);
-    var bw=a.r*1.4,by=-a.r-12;
+    var bw=r*1.4,by=-r-12;
     ctx.fillStyle="#fff8e6";ctx.fillRect(-bw/2,by,bw,6);
     ctx.fillStyle="#ef5b4c";ctx.fillRect(-bw/2,by,bw*(a.hp/a.maxHp),6);
     ctx.lineWidth=2;ctx.strokeStyle=INK;ctx.strokeRect(-bw/2,by,bw,6);
@@ -1415,7 +1435,7 @@ function loop(ts){
   if(!lastTime)lastTime=ts;
   var dt=(ts-lastTime)/1000;lastTime=ts;
   if(dt>0.05)dt=0.05;
-  if(!paused){
+  if(!paused&&!quizOpen){            /* everything freezes while a quiz question is open */
     if(hitStop>0){hitStop-=dt;dt*=0.12;} /* dramatic slow-mo on death */
     update(dt);
   }
