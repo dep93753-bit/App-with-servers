@@ -463,7 +463,7 @@ $('#classView').addEventListener('change', e => {
   activeId = e.target.value; cur().opened = Date.now(); save(); tab = 'activity'; render();
 });
 $('#classView').addEventListener('keydown', e => { if (e.target.id === 'postBox' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addPost(e.target.value); } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (tour && !document.querySelector('.scrim.show')) return endTour(); closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
 
 const sidebar = $('#sidebar');
 $('#content nav .bx-menu').onclick = () => sidebar.classList.toggle('hide');
@@ -511,6 +511,7 @@ function openProfile() {
   <label class="pf-l">I use ClassQuiz as a</label>
   <div class="role-pick"><button type="button" data-role="teacher"><i class='bx bxs-graduation'></i> Teacher</button><button type="button" data-role="student"><i class='bx bxs-user'></i> Student</button></div>
   <small class="pf-note" id="pfRoleNote"></small>
+  <button type="button" class="btn ghost" id="pfTour" style="width:100%;margin-bottom:12px"><i class='bx bx-map-alt'></i> Show me around</button>
   <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" id="pfSave">Save</button></div>`);
   const paintRole = () => {
     document.querySelectorAll('#modal [data-role]').forEach(b => b.classList.toggle('on', b.dataset.role === role));
@@ -521,6 +522,7 @@ function openProfile() {
   const show = () => { $('#pfImg').src = photo || $('#profileIcon img').src; };
   show();
   $('#pfPick').onclick = () => $('#pfFile').click();
+  $('#pfTour').onclick = () => { closeModal(); startTour(); };
   $('#pfFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { photo = await Gate.resize(f); show(); } catch (er) { toast(er.message); } };
   $('#pfClear').onclick = () => { photo = ''; $('#pfImg').src = ''; $('#pfImg').removeAttribute('src'); };
   $('#modal [data-x]').onclick = closeModal;
@@ -1619,6 +1621,114 @@ document.querySelectorAll('#sidebar .side-menu.top li a').forEach(a => a.addEven
 document.getElementById('puterLogout').addEventListener('click', e => { e.preventDefault(); puterLogout(); });
 
 
+/* ===================== Guided tour (spotlight) =====================
+   Dims the screen, lights up one real button at a time and explains it. Runs by itself the first time someone
+   uses ClassQuiz on a device (per role), and again from Account → "Show me around". Steps with `wait` hold until
+   the person actually does the thing (make a first class / join a class). */
+const TOUR_KEY = () => 'adminhub_tour_done_' + uiMode;
+const visibleEl = sel => [].concat(sel || []).map(x => document.querySelector(x))
+  .find(e => e && e.getClientRects().length && e.getBoundingClientRect().width > 0) || null;
+function teacherTourSteps() {
+  const steps = [];
+  if (!classes.some(c => !c.remote)) steps.push({ sel: ['#firstClass', '#createClass'], title: 'Make your first class',
+    text: 'Tap <b>Create class</b> and give it a name, like “Period 3 History”. The tour carries on once it’s made.',
+    wait: () => classes.some(c => !c.remote), before: () => goNav('classes') });
+  steps.push(
+    { title: 'Welcome to ClassQuiz!', text: 'Here’s a one-minute look around the teacher side. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: () => goNav('classes') },
+    { sel: '#joinBtn', title: 'Your join code', text: 'Students type this code to join your class. Tap it to copy it or show it big on the board.', before: () => { goNav('classes'); tab = 'activity'; render(); } },
+    { sel: '#classView .tabs', title: 'Class pages', text: '<b>Activity</b> is your class wall, <b>Dashboard</b> shows today’s results, and <b>Assignments</b> is where you give quizzes.' },
+    { sel: '#gear', title: 'Class settings', text: 'Turn on the <b>class leaderboard</b>, hide the posts wall, or delete the class.' },
+    { sel: '#assignQuizBtn', title: 'Assign a quiz', text: 'Pick a question set, then choose which game students play it in — or let them pick.', before: () => { tab = 'assignments'; render(); } },
+    { sel: ['#sidebar li[data-view="ai"]', '#bottomBar [data-bb="ai"]'], title: 'AI Quiz', text: 'Answer four quick questions — topic, grade, how many, difficulty — and the AI writes a quiz for you.', before: () => { tab = 'activity'; render(); } },
+    { sel: ['#sidebar li[data-view="questions"]', '#bottomBar [data-bb="questions"]'], title: 'Question sets', text: 'Every quiz you make lives here. Play it, edit it, or assign it to a class.' },
+    { sel: ['#sidebar li[data-view="analytics"]', '#bottomBar [data-bb="analytics"]'], title: 'Analytics', text: 'See who needs help, which questions get missed most, and which games students play.' },
+    { sel: '#notificationIcon', title: 'Student activity', text: 'When students play, their results show up here.' },
+    { sel: ['#settingsLink', '#bottomBar [data-bb="account"]'], title: 'Your account', text: 'Change your name and photo — and replay this tour any time with <b>Show me around</b>.' }
+  );
+  return steps;
+}
+function studentTourSteps() {
+  const steps = [];
+  if (!joinedIds.length) steps.push({ sel: '.student-join-card', title: 'Join your class',
+    text: 'Type the class code your teacher gave you, then tap <b>Join class</b>. The tour carries on once you’re in.',
+    wait: () => joinedIds.length > 0 && !!studentSession && !studentJoinOpen });
+  steps.push(
+    { title: 'Welcome to ClassQuiz!', text: 'Here’s a quick look around. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: () => { studentJoinOpen = false; studentTab = 'home'; route(); } },
+    { sel: '#studentClassTabs', title: 'Your classes', text: 'Every class you join gets its own tab. Tap <b>Join class</b> to add another one.' },
+    { sel: '#studentClassInner .tabs', title: 'Class pages', text: '<b>Home</b>, your teacher’s <b>posts</b>, <b>assignments</b>, <b>practice</b> games and <b>my scores</b>.' },
+    { sel: '#studentTabBody', title: 'Assignments', text: 'Quizzes from your teacher show up here. Tap <b>Play</b> to start one.', before: () => { studentTab = 'assignments'; renderStudentClass(); } },
+    { sel: ['.shquick', '#studentTabBody'], title: 'Play and learn', text: 'Every game uses your class’s questions. Run out of ammo or moves? Answer a question to keep going!', before: () => { studentTab = 'home'; renderStudentClass(); } },
+    { sel: '[data-student-tab="leaderboard"]', optional: true, title: 'Class leaderboard', text: 'See how everyone in your class ranks by correct answers.' },
+    { sel: '[data-student-tab="scores"]', title: 'My scores', text: 'Every game you’ve played and how many questions you got right.' },
+    { sel: ['#settingsLink', '#bottomBar [data-bb="account"]'], title: 'Your account', text: 'Change your name or photo — and replay this tour with <b>Show me around</b>.' }
+  );
+  return steps;
+}
+let tour = null;
+function startTour() {
+  endTour(true);
+  const root = document.createElement('div'); root.id = 'tour';
+  root.innerHTML = '<div class="tr-shade"></div>'.repeat(4) + '<div class="tr-block"></div><div class="tr-ring"></div><div class="tr-tip" role="dialog" aria-live="polite"></div>';
+  document.body.appendChild(root);
+  root.addEventListener('click', e => {
+    const b = e.target.closest('[data-tr]'); if (!b || !tour) return;
+    if (b.dataset.tr === 'next') tourGo(tour.i + 1, 1);
+    else if (b.dataset.tr === 'back') tourGo(tour.i - 1, -1);
+    else endTour();
+  });
+  tour = { steps: uiMode === 'teacher' ? teacherTourSteps() : studentTourSteps(), i: -1, root, timer: setInterval(tourTick, 200) };
+  tourGo(0, 1);
+}
+function tourGo(i, dir) {
+  const t = tour; if (!t) return;
+  if (i >= t.steps.length) return endTour();
+  i = Math.max(0, i);
+  const st = t.steps[i];
+  if (st.before) st.before();
+  if (st.optional && !visibleEl(st.sel)) return tourGo(i + (dir || 1), dir);   // e.g. no leaderboard in this class
+  t.i = i;
+  const last = i === t.steps.length - 1;
+  t.root.querySelector('.tr-tip').innerHTML = `<small>${i + 1} of ${t.steps.length}</small><h4>${st.title}</h4><p>${st.text}</p>
+    <div class="tr-foot"><button class="tr-skip" data-tr="skip">${last ? '' : 'Skip tour'}</button>
+      <span>${st.wait ? '<span class="tr-wait"><i class=\'bx bx-loader-alt spin\'></i> Waiting for you…</span>'
+        : (i > 0 && !t.steps[i - 1].wait ? '<button class="btn ghost" data-tr="back">Back</button>' : '') + `<button class="btn" data-tr="next">${last ? 'Done' : 'Next'}</button>`}</span></div>`;
+  tourTick();
+}
+function tourTick() {
+  const t = tour; if (!t || t.i < 0) return;
+  const st = t.steps[t.i];
+  if (st.wait && st.wait()) return tourGo(t.i + 1, 1);
+  // step aside while a popup, the question editor or a game is open (e.g. the "Create class" box)
+  const busy = ['#scrim', '#authScrim', '#battleWrap'].some(x => { const e = $(x); return e && e.classList.contains('show'); }) || !!document.querySelector('.qe-scrim.show');
+  t.root.style.display = busy ? 'none' : '';
+  if (busy) return;
+  const [s1, s2, s3, s4] = t.root.querySelectorAll('.tr-shade'), block = t.root.querySelector('.tr-block'), ring = t.root.querySelector('.tr-ring'), tip = t.root.querySelector('.tr-tip');
+  const W = innerWidth, H = innerHeight, box = (e, x, y, w, h) => Object.assign(e.style, { left: x + 'px', top: y + 'px', width: Math.max(0, w) + 'px', height: Math.max(0, h) + 'px' });
+  const el = visibleEl(st.sel);
+  let r = el && el.getBoundingClientRect();
+  if (r && (r.top < 60 || r.bottom > H - 70)) { el.scrollIntoView({ block: 'center' }); r = el.getBoundingClientRect(); }
+  const tw = Math.min(330, W - 24); tip.style.width = tw + 'px';
+  const th = tip.offsetHeight;
+  if (!r) {                                   // nothing to point at: dim everything, tip in the middle
+    box(s1, 0, 0, W, H); [s2, s3, s4, block, ring].forEach(e => box(e, 0, 0, 0, 0)); ring.style.display = 'none';
+    Object.assign(tip.style, { left: (W - tw) / 2 + 'px', top: Math.max(12, (H - th) / 2) + 'px' });
+    return;
+  }
+  const pad = 6, x = r.left - pad, y = r.top - pad, w = r.width + pad * 2, h = r.height + pad * 2;
+  box(s1, 0, 0, W, y); box(s2, 0, y + h, W, H - y - h); box(s3, 0, y, x, h); box(s4, x + w, y, W - x - w, h);
+  box(ring, x, y, w, h); ring.style.display = '';
+  box(block, x, y, w, h); block.style.display = st.wait ? 'none' : '';   // only "do it" steps let taps through
+  const below = y + h + 12, above = y - 12 - th;
+  // below or above the target; if neither fits, keep clear of a "do it" target by sitting at the top of the screen
+  const top = below + th < H - 8 ? below : above > 8 ? above : st.wait ? 8 : Math.max(8, H - th - 8);
+  Object.assign(tip.style, { left: Math.min(Math.max(12, r.left + r.width / 2 - tw / 2), W - tw - 12) + 'px', top: top + 'px' });
+}
+function endTour(silent) {
+  if (!tour) return;
+  clearInterval(tour.timer); tour.root.remove(); tour = null;
+  if (!silent) { try { localStorage.setItem(TOUR_KEY(), '1'); } catch (e) {} }
+}
+
 /* ===================== Cloud sync (Firebase, via data.js) ===================== */
 function saveRemote() {
   try { localStorage.setItem(RKEY, JSON.stringify({ classes: classes.filter(c => c.remote), qsets: qsets.filter(q => q._remote) })); } catch (e) {}
@@ -1706,6 +1816,7 @@ updateAuthBadge();
 updateLogoutVisibility();
 updateStudentSidebarExtras();
 paintAvatar();
-if (uiMode === 'teacher') checkPuter();   // quiet: only sets the AI badge, never opens a window
+if (uiMode === 'teacher') checkPuter();
+setTimeout(() => { let done = false; try { done = !!localStorage.getItem(TOUR_KEY()); } catch (e) {} if (!done && !tour) startTour(); }, 900);   // first time here   // quiet: only sets the AI badge, never opens a window
 cloudPublishSoon();
 cloudWatchStudent();
