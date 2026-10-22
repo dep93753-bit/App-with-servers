@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Hangman</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  body{background:linear-gradient(160deg,#1e1b4b,#0f172a);color:#f1f5f9;font-family:"Outfit",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px 10px 20px;gap:12px;touch-action:manipulation}
+  h1{font-size:clamp(22px,6vw,32px);letter-spacing:.12em;text-transform:uppercase}
+  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;flex-wrap:wrap;justify-content:center}.hud b{color:#facc15}
+  .wrap{width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .clue{width:100%;background:#fff;color:#1e1b4b;border-radius:14px;padding:14px 16px;font-size:clamp(16px,4.4vw,20px);font-weight:800;text-align:center;line-height:1.35}
+  .clue small{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#6366f1;margin-bottom:4px}
+  svg{width:min(200px,42vw);height:auto}
+  svg .p{stroke:#e2e8f0;stroke-width:5;stroke-linecap:round;fill:none;opacity:0;transition:opacity .25s}
+  svg .p.on{opacity:1}
+  svg .p.pre{stroke:#64748b}
+  .word{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 20px}
+  .w{display:flex;gap:5px}
+  .ch{width:clamp(22px,6.5vw,34px);border-bottom:4px solid #94a3b8;text-align:center;font-size:clamp(20px,6vw,30px);font-weight:800;line-height:1.3;min-height:1.3em}
+  .ch.sym{border-color:transparent}
+  .ch.miss{color:#f87171}
+  .word.won .ch{color:#4ade80;border-color:#4ade80}
+  .msg{min-height:1.4em;font-weight:700;text-align:center}
+  .keys{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;width:100%;max-width:560px}
+  .keys.digits{grid-template-columns:repeat(10,1fr)}
+  .k{padding:10px 0;border:none;border-radius:9px;background:rgba(255,255,255,.18);color:inherit;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  .k:active{transform:scale(.93)}
+  .k.good{background:#16a34a}.k.bad{background:#475569;opacity:.5}
+  .k:disabled{cursor:default}
+  .btn{padding:11px 26px;border:none;border-radius:10px;background:#facc15;color:#1e1b4b;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  .btn.ghost{background:rgba(255,255,255,.18);color:#f1f5f9}
+  .card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:20px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;width:100%;max-width:420px}
+  .lv{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .lv button{padding:10px 16px;border:2px solid rgba(255,255,255,.3);border-radius:10px;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer}
+  .lv button.sel{background:#facc15;color:#1e1b4b;border-color:#facc15}
+  .lv small{display:block;font-weight:500;font-size:12px;opacity:.8}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<h1>Hangman</h1>
+
+<!-- Start screen -->
+<div class="card" id="startCard">
+  <p id="startInfo">Loading clues…</p>
+  <div class="lv" id="lv">
+    <button data-lives="10">Easy<small>10 wrong guesses</small></button>
+    <button data-lives="8" class="sel">Medium<small>8 wrong guesses</small></button>
+    <button data-lives="6">Hard<small>6 wrong guesses</small></button>
+  </div>
+  <button class="btn" id="startBtn" disabled>Start</button>
+</div>
+
+<!-- Game -->
+<div class="wrap" id="game" hidden>
+  <div class="hud"><span>Word <b id="num">1</b>/<b id="tot">1</b></span><span>Solved <b id="sol">0</b></span><span>Guesses left <b id="left">0</b></span></div>
+  <div class="clue"><small>Clue</small><span id="clue"></span></div>
+  <svg viewBox="0 0 200 200" aria-hidden="true">
+    <line class="p" x1="20" y1="190" x2="120" y2="190"/>
+    <line class="p" x1="50" y1="190" x2="50" y2="15"/>
+    <line class="p" x1="50" y1="15" x2="140" y2="15"/>
+    <line class="p" x1="140" y1="15" x2="140" y2="40"/>
+    <circle class="p" cx="140" cy="58" r="18"/>
+    <line class="p" x1="140" y1="76" x2="140" y2="130"/>
+    <line class="p" x1="140" y1="90" x2="115" y2="112"/>
+    <line class="p" x1="140" y1="90" x2="165" y2="112"/>
+    <line class="p" x1="140" y1="130" x2="118" y2="165"/>
+    <line class="p" x1="140" y1="130" x2="162" y2="165"/>
+  </svg>
+  <div class="word" id="word"></div>
+  <div class="msg" id="msg"></div>
+  <div class="keys" id="keys"></div>
+  <div class="keys digits" id="digits" hidden></div>
+  <button class="btn" id="nextBtn" hidden>Next word</button>
+</div>
+
+<!-- Results -->
+<div class="card" id="endCard" hidden>
+  <h2 id="endTitle"></h2>
+  <p id="endText"></p>
+  <button class="btn" id="againBtn">Play again</button>
+</div>
+
+<script src="quiz-modal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (i) { return document.getElementById(i); };
+  var PARTS = Array.prototype.slice.call(document.querySelectorAll('svg .p'));   // 10 drawing steps
+  var lives = 8, rounds = [], r = 0, solved = 0, answers = [], guessed, wrong, done;
+
+  // Only questions that have their own Hangman clue + short answer are used.
+  function hangmanRounds() {
+    var out = [];
+    (QUESTIONS || []).forEach(function (q, i) {
+      if (q && typeof q.hangmanClue === 'string' && q.hangmanClue.trim() && typeof q.hangmanAnswer === 'string' && /[A-Za-z0-9]/.test(q.hangmanAnswer))
+        out.push({ qIdx: i, clue: q.hangmanClue.trim(), answer: q.hangmanAnswer.trim().toUpperCase().replace(/\s+/g, ' ') });
+    });
+    return out;
+  }
+  function isGuessable(c) { return /[A-Z0-9]/.test(c); }
+
+  function showStart() {
+    rounds = hangmanRounds();
+    $('startCard').hidden = false; $('game').hidden = true; $('endCard').hidden = true;
+    if (rounds.length) {
+      $('startInfo').textContent = rounds.length + ' clue' + (rounds.length === 1 ? '' : 's') + ' in this set. Pick a difficulty:';
+      $('startBtn').disabled = false;
+    } else {
+      $('startInfo').textContent = 'This question set has no Hangman clues yet. Make a new set with AI Quiz — new sets include Hangman clues automatically.';
+      $('startBtn').disabled = true;
+    }
+  }
+
+  function buildKeys() {
+    var k = $('keys'); k.innerHTML = '';
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(function (c) { k.appendChild(key(c)); });
+    var d = $('digits'); d.innerHTML = '';
+    '1234567890'.split('').forEach(function (c) { d.appendChild(key(c)); });
+  }
+  function key(c) {
+    var b = document.createElement('button'); b.className = 'k'; b.textContent = c; b.dataset.k = c;
+    b.addEventListener('click', function () { guess(c); });
+    return b;
+  }
+
+  function startRound() {
+    var rd = rounds[r]; guessed = {}; wrong = 0; done = false;
+    $('num').textContent = r + 1; $('tot').textContent = rounds.length; $('sol').textContent = solved;
+    $('clue').textContent = rd.clue; $('msg').textContent = ''; $('nextBtn').hidden = true;
+    $('word').classList.remove('won');
+    $('digits').hidden = !/[0-9]/.test(rd.answer);
+    document.querySelectorAll('.k').forEach(function (b) { b.disabled = false; b.className = 'k'; });
+    drawWord(false); drawMan();
+  }
+
+  function drawWord(reveal) {
+    var ans = rounds[r].answer, w = $('word'); w.innerHTML = '';
+    ans.split(' ').forEach(function (part) {
+      var g = document.createElement('div'); g.className = 'w';
+      part.split('').forEach(function (c) {
+        var s = document.createElement('span'); s.className = 'ch';
+        if (!isGuessable(c)) { s.classList.add('sym'); s.textContent = c; }          // punctuation is shown for free
+        else if (guessed[c]) s.textContent = c;
+        else if (reveal) { s.textContent = c; s.classList.add('miss'); }
+        g.appendChild(s);
+      });
+      w.appendChild(g);
+    });
+  }
+  function drawMan() {
+    var pre = PARTS.length - lives;                    // easier levels start with part of the drawing already there
+    PARTS.forEach(function (p, i) { p.classList.toggle('on', i < pre + wrong); p.classList.toggle('pre', i < pre); });
+    $('left').textContent = lives - wrong;
+  }
+
+  function guess(c) {
+    if (done || guessed[c] || $('game').hidden) return;
+    guessed[c] = true;
+    var ans = rounds[r].answer, hit = ans.indexOf(c) !== -1;
+    var b = document.querySelector('.k[data-k="' + c + '"]'); if (b) { b.disabled = true; b.classList.add(hit ? 'good' : 'bad'); }
+    if (!hit) wrong++;
+    drawWord(false); drawMan();
+    var allFound = ans.split('').every(function (ch) { return !isGuessable(ch) || guessed[ch]; });
+    if (allFound) finishRound(true);
+    else if (wrong >= lives) finishRound(false);
+  }
+
+  function finishRound(ok) {
+    done = true;
+    if (ok) { solved++; $('word').classList.add('won'); $('msg').innerHTML = '<span style="color:#4ade80">✓ Solved!</span>'; }
+    else { drawWord(true); $('msg').innerHTML = '<span style="color:#f87171">Out of guesses — the answer was shown above.</span>'; }
+    answers.push({ qIdx: rounds[r].qIdx, correct: ok });
+    $('sol').textContent = solved;
+    document.querySelectorAll('.k').forEach(function (b) { b.disabled = true; });
+    $('nextBtn').textContent = r + 1 < rounds.length ? 'Next word' : 'See results';
+    $('nextBtn').hidden = false;
+  }
+
+  function endGame() {
+    var won = solved * 2 >= rounds.length;            // solved at least half = win
+    $('game').hidden = true; $('endCard').hidden = false;
+    $('endTitle').textContent = won ? '🎉 Nice work!' : 'Game over';
+    $('endText').textContent = 'You solved ' + solved + ' of ' + rounds.length + ' word' + (rounds.length === 1 ? '' : 's') + '.';
+    try { window.parent.postMessage({ type: 'gameEnd', game: 'hangman', quizId: QUIZ_ID, won: won, score: solved * 100, answers: answers }, '*'); } catch (e) {}
+  }
+
+  $('lv').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    lives = +b.dataset.lives;
+    $('lv').querySelectorAll('button').forEach(function (x) { x.classList.toggle('sel', x === b); });
+  });
+  $('startBtn').addEventListener('click', function () {
+    r = 0; solved = 0; answers = [];
+    $('startCard').hidden = true; $('game').hidden = false; startRound();
+  });
+  $('nextBtn').addEventListener('click', function () { r++; if (r < rounds.length) startRound(); else endGame(); });
+  $('againBtn').addEventListener('click', showStart);
+  window.addEventListener('keydown', function (e) {
+    var c = (e.key || '').toUpperCase();
+    if (c.length === 1 && isGuessable(c)) guess(c);
+    else if (e.key === 'Enter' && !$('nextBtn').hidden) $('nextBtn').click();
+  });
+
+  // The app sends the questions right after this page loads (handled in quiz-modal.js).
+  window.addEventListener('message', function (e) { if (e.data && e.data.type === 'loadQuiz') setTimeout(showStart, 0); });
+  if (window.parent === window) {                       // opened on its own for testing
+    QUESTIONS = [{ hangmanClue: 'He was president during the Civil War', hangmanAnswer: 'Abraham Lincoln' },
+                 { hangmanClue: 'The year World War II ended', hangmanAnswer: '1945' }];
+  }
+  buildKeys(); showStart();
+})();
+</script>
+</body>
+</html>
