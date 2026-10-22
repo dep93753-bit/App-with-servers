@@ -557,3 +557,4 @@ main{padding:28px 24px;color:var(--dark)}
 .tr-foot .btn{padding:8px 18px;font-size:14px}
 .tr-skip{background:none;border:none;color:var(--dark-grey);font-size:13px;font-weight:600;padding:6px 0}
 .tr-wait{display:flex;align-items:center;gap:6px;color:var(--blue);font-size:13px;font-weight:600}
+body.touring #cloudBadge{display:none}
