@@ -210,7 +210,7 @@ function listHtml(items, key, empty, opts = {}) {
         ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
       </div>`;
     }
-    return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bxs-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}</small></div>
+    return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bx-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}</small></div>
       <button class="del" data-del="${key}:${i.id}" aria-label="Delete"><i class='bx bx-trash'></i></button></div><p>${esc(i.text)}</p>${extra}</div>`;
   }).join('')}</div>`;
 }
@@ -266,7 +266,7 @@ function dashHtml(c) {
     <div class="sum">
       <div class="stat"><span><i class='bx bxs-user'></i>Students</span><b>${students.length}</b></div>
       <div class="stat"><span><i class='bx bxs-joystick'></i>Games played</span><b>${gamesPlayed}</b></div>
-      <div class="stat"><span><i class='bx bxs-task'></i>Assignments</span><b>${c.assignments.length}</b></div>
+      <div class="stat"><span><i class='bx bx-task'></i>Assignments</span><b>${c.assignments.length}</b></div>
     </div>
     <div class="sum promo"><small>Join code</small><div class="pc">${c.code}</div><button data-act="code">Show code</button></div>
   </div>
@@ -732,7 +732,7 @@ function renderStudentClass() {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'bxs-graduation' },
     { id: 'posts', label: 'Posts', icon: 'bxs-message-rounded' },
-    { id: 'assignments', label: 'Assignments', icon: 'bxs-task' },
+    { id: 'assignments', label: 'Assignments', icon: 'bx-task' },
     { id: 'practice', label: 'Practice', icon: 'bxs-book' },
     { id: 'scores', label: 'My scores', icon: 'bxs-bar-chart-alt-2' }
   ];
@@ -789,9 +789,9 @@ function renderStudentHome(c, scores) {
   let nextAssignBlock = '';
   if (nextAssign) {
     nextAssignBlock = `<div class="shsection">
-      <h3><i class='bx bxs-task'></i> Latest assignment</h3>
+      <h3><i class='bx bx-task'></i> Latest assignment</h3>
       <div class="shline">
-        <div class="shl-icon"><i class='bx bxs-task'></i></div>
+        <div class="shl-icon"><i class='bx bx-task'></i></div>
         <div class="shl-info"><b>${esc(nextAssign.text)}</b><small>${fmt(nextAssign.time)}${nextAssign.kind === 'quiz' ? ' · quiz' : ''}</small></div>
         ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions">${assignPlayBtn(nextAssign)}</div>` : ''}
       </div>
@@ -814,7 +814,7 @@ function renderStudentHome(c, scores) {
     <div class="shwelcome"><h1>Hi ${esc(studentIdentity.name || 'there')}, welcome to ${esc(c.name)}!</h1><p>Everything your teacher posts and assigns will show up here.</p></div>
     <div class="shgrid">
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-message-rounded'></i></div><b>${showWall ? c.posts.length : '—'}</b><small>Posts</small></div>
-      <div class="shcard"><div class="shc-icon"><i class='bx bxs-task'></i></div><b>${c.assignments.length}</b><small>Assignments</small></div>
+      <div class="shcard"><div class="shc-icon"><i class='bx bx-task'></i></div><b>${c.assignments.length}</b><small>Assignments</small></div>
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-trophy'></i></div><b>${wins}</b><small>Wins</small></div>
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-joystick'></i></div><b>${scores.length}</b><small>Games played</small></div>
     </div>
@@ -841,7 +841,7 @@ function renderStudentAssignments(c) {
   const body = document.getElementById('studentTabBody');
   if (!c.assignments.length) { body.innerHTML = `<div class="card"><div class="student-empty">No assignments yet. Check back soon!</div></div>`; return; }
   body.innerHTML = `<div class="card">${c.assignments.map(a => `<div class="student-post">
-    <div class="meta">${tAv(teacherOf(c), 'bxs-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
+    <div class="meta">${tAv(teacherOf(c), 'bx-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
     <p>${esc(a.text)}</p>
     ${a.kind === 'quiz' && a.quizId ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       ${assignPlayBtn(a)}
@@ -880,7 +880,7 @@ function renderStudentScores(c, scores) {
     </div>
     <div class="card" style="padding:0 20px">
       ${scores.map(s => `<div class="score-row">
-        <div class="sr-badge ${s.won ? 'win' : 'lose'}"><i class='bx ${s.won ? 'bxs-check' : s.quit ? 'bx-exit' : 'bx-x'}'></i></div>
+        <div class="sr-badge ${s.won ? 'win' : 'lose'}"><i class='bx ${s.won ? 'bx-check' : s.quit ? 'bx-exit' : 'bx-x'}'></i></div>
         <div class="sr-info"><b>${esc(gameNames[s.game] || s.game)}</b><small>${s.won ? 'Won' : s.quit ? 'Left early' : 'Lost'} · ${(s.answers || []).filter(a => a.correct).length}/${(s.answers || []).length} correct · ${fmt(s.time)}</small></div>
         <div class="sr-score">${s.score || 0}</div>
       </div>`).join('')}
@@ -1078,7 +1078,7 @@ function pickAndAssignQuiz() {
 /* ===================== Kahoot-style question editor ===================== */
 const OPT_SHAPES = ['shape-a', 'shape-b', 'shape-c', 'shape-d'];
 const OPT_LETTERS = ['A', 'B', 'C', 'D'];
-const OPT_ICONS = ['bxs-square', 'bxs-circle', 'bxs-triangle', 'bxs-diamond'];
+const OPT_ICONS = ['bxs-square', 'bxs-circle', 'bxs-up-arrow', 'bxs-diamond'];
 let qeState = null;   // { qs, mode: 'edit'|'preview' }
 
 function ensureQEShell() {
@@ -1479,7 +1479,7 @@ function showPuterProblem(title, msg) {
 }
 function openAITab() {                   // AI Quiz page: show the Puter steps only if there's no Puter account yet
   renderChat();
-  checkPuter().then(ok => { if (!ok && nav === 'ai' && authState === 'none') showPuterTutorial(); });
+  checkPuter().then(ok => { if (!ok && nav === 'ai' && authState === 'none' && !tour) showPuterTutorial(); });
 }
 async function puterLogout() {
   if (authState !== 'signed') { toast('Logout only works for a full Puter account.'); return; }
@@ -1633,17 +1633,39 @@ function teacherTourSteps() {
   if (!classes.some(c => !c.remote)) steps.push({ sel: ['#firstClass', '#createClass'], title: 'Make your first class',
     text: 'Tap <b>Create class</b> and give it a name, like “Period 3 History”. The tour carries on once it’s made.',
     wait: () => classes.some(c => !c.remote), before: () => goNav('classes') });
+  const page = v => () => { if (nav !== v) goNav(v); };
+  const classTab = t => () => { if (nav !== 'classes') goNav('classes'); if (tab !== t) { tab = t; render(); } };
   steps.push(
-    { title: 'Welcome to ClassQuiz!', text: 'Here’s a one-minute look around the teacher side. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: () => goNav('classes') },
-    { sel: '#joinBtn', title: 'Your join code', text: 'Students type this code to join your class. Tap it to copy it or show it big on the board.', before: () => { goNav('classes'); tab = 'activity'; render(); } },
-    { sel: '#classView .tabs', title: 'Class pages', text: '<b>Activity</b> is your class wall, <b>Dashboard</b> shows today’s results, and <b>Assignments</b> is where you give quizzes.' },
-    { sel: '#gear', title: 'Class settings', text: 'Turn on the <b>class leaderboard</b>, hide the posts wall, or delete the class.' },
-    { sel: '#assignQuizBtn', title: 'Assign a quiz', text: 'Pick a question set, then choose which game students play it in — or let them pick.', before: () => { tab = 'assignments'; render(); } },
-    { sel: ['#sidebar li[data-view="ai"]', '#bottomBar [data-bb="ai"]'], title: 'AI Quiz', text: 'Answer four quick questions — topic, grade, how many, difficulty — and the AI writes a quiz for you.', before: () => { tab = 'activity'; render(); } },
-    { sel: ['#sidebar li[data-view="questions"]', '#bottomBar [data-bb="questions"]'], title: 'Question sets', text: 'Every quiz you make lives here. Play it, edit it, or assign it to a class.' },
-    { sel: ['#sidebar li[data-view="analytics"]', '#bottomBar [data-bb="analytics"]'], title: 'Analytics', text: 'See who needs help, which questions get missed most, and which games students play.' },
-    { sel: '#notificationIcon', title: 'Student activity', text: 'When students play, their results show up here.' },
-    { sel: ['#settingsLink', '#bottomBar [data-bb="account"]'], title: 'Your account', text: 'Change your name and photo — and replay this tour any time with <b>Show me around</b>.' }
+    { title: 'Welcome to ClassQuiz!', text: 'Here’s a quick tour of everything on the teacher side. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: classTab('activity') },
+    // ---- Classes ----
+    { sel: ['#ownedList', '#classPick'], title: 'Your classes', text: 'All your classes are listed here. Tap one to open it, or make another with <b>Create class</b>.', before: classTab('activity') },
+    { sel: '#joinBtn', title: 'Your join code', text: 'Students type this code to join your class. Tap it to copy it or show it big on the board.' },
+    { sel: '#classView .tabs', title: 'Class tabs', text: 'Each class has three tabs: <b>Activity</b>, <b>Dashboard</b> and <b>Assignments</b>. Let’s look at each one.' },
+    { sel: '#classView .card', title: 'Activity: the class wall', text: 'Write announcements here — they show up on your students’ class page. You can also <b>Share</b> the join code or <b>Assign</b> work from here.', before: classTab('activity') },
+    { sel: '#classView .today', title: 'Dashboard: last 24 hours', text: 'Games played, students active and how many answers were right today — plus the latest activity.', before: classTab('dashboard') },
+    { sel: '#classView .sumrow', title: 'Dashboard: class report', text: 'Overall mastery for the class, student count, games played, and the join code for sharing.' },
+    { sel: '#assignQuizBtn', title: 'Assignments', text: '<b>Assign quiz</b>: pick a question set, then choose which game students play it in — or let them pick. Each assignment has a stats button to see how it went.', before: classTab('assignments') },
+    { sel: '#assignTextBtn', title: 'Text assignments', text: 'Post a plain to-do (like “Read chapter 4”) without a quiz.' },
+    { sel: '#gear', title: 'Class settings', text: 'Turn on the <b>class leaderboard</b>, choose whether students can post, hide the wall, or delete the class.' },
+    // ---- AI Quiz ----
+    { sel: ['#sidebar li[data-view="ai"]', '#bottomBar [data-bb="ai"]'], title: 'AI Quiz', text: 'Next, the AI quiz maker.', before: classTab('activity') },
+    { sel: '.chat-wrap', title: 'Chat with the quiz maker', text: 'It asks four things — <b>topic</b>, <b>grade</b>, <b>how many questions</b> and <b>difficulty</b> — then writes the quiz and saves it to Question sets.', before: page('ai') },
+    { sel: '#chatChips', optional: true, title: 'Quick answers', text: 'Tap a suggestion instead of typing.' },
+    { sel: '#aiAttach', title: 'Use your own notes', text: 'Attach a <b>.txt</b> or <b>.pdf</b> (or paste long notes) and the questions come from your material.' },
+    { sel: '#authBadge', title: 'AI sign-in', text: 'The AI runs on <b>Puter</b>, a free service. This badge shows if you’re signed in — tap it to sign in the first time.' },
+    { sel: '#aiReset', title: 'Start over', text: '<b>New chat</b> starts a fresh quiz.' },
+    // ---- Questions ----
+    { sel: ['#sidebar li[data-view="questions"]', '#bottomBar [data-bb="questions"]'], title: 'Question sets', text: 'Every quiz you make lands here.', before: page('questions') },
+    { sel: '#qsList .qset', title: 'A question set', text: 'Play it in any game, or use the buttons: <b>eye</b> shows/hides it in student practice, <b>assign</b> sends it to a class, <b>edit</b> changes questions, <b>trash</b> deletes it.' },
+    { sel: '#qsToAI', title: 'Make a new set', text: 'Jumps to AI Quiz to make another one.' },
+    // ---- Analytics ----
+    { sel: ['#sidebar li[data-view="analytics"]', '#bottomBar [data-bb="analytics"]'], title: 'Analytics', text: 'How each class is doing.', before: page('analytics') },
+    { sel: '#anBody .an-classes', optional: true, title: 'Pick a class', text: 'Switch between your classes here.' },
+    { sel: '#anBody .an-grid', optional: true, title: 'Who needs help', text: '<b>Needs help</b> lists students under 60%, <b>Most-missed questions</b> shows what to reteach, plus games played and the leaderboard.' },
+    { sel: '#anBody .an-table', optional: true, title: 'Every student', text: 'Games, correct answers, accuracy and when they last played.' },
+    // ---- everywhere ----
+    { sel: '#notificationIcon', title: 'Student activity', text: 'When students play, their results show up here.', before: classTab('activity') },
+    { sel: ['#settingsLink', '#bottomBar [data-bb="account"]'], title: 'Your account', text: 'Change your name and photo, switch between teacher and student — and replay this tour with <b>Show me around</b>.' }
   );
   return steps;
 }
@@ -1669,7 +1691,7 @@ function startTour() {
   endTour(true);
   const root = document.createElement('div'); root.id = 'tour';
   root.innerHTML = '<div class="tr-shade"></div>'.repeat(4) + '<div class="tr-block"></div><div class="tr-ring"></div><div class="tr-tip" role="dialog" aria-live="polite"></div>';
-  document.body.appendChild(root);
+  document.body.appendChild(root); document.body.classList.add('touring');
   root.addEventListener('click', e => {
     const b = e.target.closest('[data-tr]'); if (!b || !tour) return;
     if (b.dataset.tr === 'next') tourGo(tour.i + 1, 1);
@@ -1725,7 +1747,7 @@ function tourTick() {
 }
 function endTour(silent) {
   if (!tour) return;
-  clearInterval(tour.timer); tour.root.remove(); tour = null;
+  clearInterval(tour.timer); tour.root.remove(); tour = null; document.body.classList.remove('touring');
   if (!silent) { try { localStorage.setItem(TOUR_KEY(), '1'); } catch (e) {} }
 }
 
