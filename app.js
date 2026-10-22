@@ -144,6 +144,33 @@ function leaderboardFor(c) {
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cur = () => classes.find(c => c.id === activeId);
+/* Motion animations. If the library didn't load, or the device has "reduce motion" on, nothing animates. */
+const FX = (() => {
+  const M = () => (!window.Motion || matchMedia('(prefers-reduced-motion: reduce)').matches) ? null : window.Motion;
+  const EASE = [0.23, 1, 0.32, 1];                     // ease-out: fast start, gentle stop
+  const run = (el, kf, opt) => { const m = M(); if (!m || !el) return; try { m.animate(el, kf, opt); } catch (e) {} };
+  const listItems = '.tstat, .shcard, .lb-row, .qset, .post, .student-post, .an-grid > *, .roster-row';
+  return {
+    // pop-ups spring in with a little bounce, the dark backdrop fades with them
+    pop(el, backdrop) { run(el, { opacity: [0, 1], y: [10, 0], scale: [0.96, 1] }, { type: 'spring', duration: 0.32, bounce: 0.2 }); run(backdrop, { opacity: [0, 1] }, { duration: 0.2, ease: EASE }); },
+    // menus drop down from the top
+    drop(el) { run(el, { opacity: [0, 1], y: [-6, 0], scale: [0.98, 1] }, { duration: 0.16, ease: EASE }); },
+    // a small thing (like a Done tick) pops
+    tick(el) { run(el, { scale: [0.6, 1], opacity: [0, 1] }, { type: 'spring', duration: 0.35, bounce: 0.35 }); },
+    // a new tab or page: content slides up a touch, cards appear one after another, numbers count up
+    enter(el) {
+      const m = M(); if (!m || !el) return;
+      run(el, { opacity: [0, 1], y: [6, 0] }, { duration: 0.22, ease: EASE });
+      const items = [...el.querySelectorAll(listItems)].slice(0, 12);
+      if (items.length) run(items, { opacity: [0, 1], y: [8, 0] }, { duration: 0.25, ease: EASE, delay: m.stagger(0.035) });
+      el.querySelectorAll('.tstat b, .shcard b').forEach(b => {
+        const hit = /^(\d+)(%?)$/.exec(b.textContent.trim()); if (!hit || +hit[1] < 2) return;
+        const end = +hit[1], suffix = hit[2];
+        try { m.animate(0, end, { duration: 0.6, ease: EASE, onUpdate: v => { b.textContent = Math.round(v) + suffix; }, onComplete: () => { b.textContent = end + suffix; } }); } catch (e) {}
+      });
+    }
+  };
+})();
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1800); }
 const fmt = t => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 function makeCode() {
@@ -154,7 +181,7 @@ function makeCode() {
   while (classes.some(c => c.code === code));
   return code;
 }
-function openModal(html) { $('#modal').innerHTML = html; $('#scrim').classList.add('show'); const i = $('#modal input[type=text]'); if (i) i.focus(); }
+function openModal(html) { const was = $('#scrim').classList.contains('show'); $('#modal').innerHTML = html; $('#scrim').classList.add('show'); if (!was) FX.pop($('#modal'), $('#scrim')); const i = $('#modal input[type=text]'); if (i) i.focus(); }
 function closeModal() { $('#scrim').classList.remove('show'); }
 $('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeModal(); });
 function ask(title, sub, label, cb, initial = '') {
@@ -482,13 +509,13 @@ function render() {
     }
     const picker = `<div class="classpick"><select id="classPick" aria-label="Switch class">${classes.map(x => `<option value="${x.id}" ${x.id === activeId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="__new">+ Create class</option></select></div>`;
     v.innerHTML = `${picker}<div class="ctop"><h1>${esc(c.name)}</h1><div class="tools"><button class="codechip" id="joinBtn" title="Show and copy the join code"><small>Join code</small><b>${esc(c.code)}</b><i class='bx bx-copy'></i></button><i class='bx bx-list-check' id="qsShortcut" title="Question sets" tabindex="0" style="cursor:pointer"></i><i class='bx bx-cog' id="gear" title="Teacher settings" tabindex="0"></i></div></div>
-      <div class="row"><div class="tabs">${['activity','dashboard','assignments'].map(t => `<button data-tab="${t}" class="${tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>${body}`;
+      <div class="row"><div class="tabs">${['activity','dashboard','assignments'].map(t => `<button data-tab="${t}" class="${tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div><div class="tabbody">${body}</div>`;
   }
   paintNotifs();
   route();
 }
 
-function pick(e) { const b = e.target.closest('[data-id]'); if (!b) return; activeId = b.dataset.id; cur().opened = Date.now(); save(); tab = 'activity'; render(); }
+function pick(e) { const b = e.target.closest('[data-id]'); if (!b) return; activeId = b.dataset.id; cur().opened = Date.now(); save(); tab = 'activity'; render(); FX.enter($('#classView')); }
 $('#classList').addEventListener('click', pick);
 $('#ownedList').addEventListener('click', pick);
 function setRail(v) { railOpen = v; try { localStorage.setItem('adminhub_rail_open', v ? '1' : '0'); } catch (e) {} render(); }
@@ -505,7 +532,7 @@ $('#classView').addEventListener('click', e => {
   if (e.target.closest('#assignTextBtn')) return addAssignment();
   const sb = e.target.closest('[data-stats-for]');
   if (sb) { const a = cur().assignments.find(x => String(x.id) === sb.dataset.statsFor); if (a) showAssignmentStats(a); return; }
-  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; render(); return; }
+  const t = e.target.closest('[data-tab]'); if (t) { const changed = tab !== t.dataset.tab; tab = t.dataset.tab; render(); if (changed) FX.enter($('#classView .tabbody')); return; }
   if (e.target.closest('#joinBtn')) return showCode();
   if (e.target.closest('#gear')) return showSettings();
   const pq = e.target.closest('[data-play-quiz]'); if (pq) { const qs = getQuestionSets().find(x => x.id === pq.dataset.playQuiz); openGame(pq.dataset.game || 'battleship', qs || null); return; }
@@ -541,10 +568,11 @@ function paintNotifs() {              // the bell lists students' latest games (
 $('#notificationIcon').onclick = e => {
   e.preventDefault(); paintNotifs();
   $('#notificationMenu').classList.toggle('show'); $('#profileMenu').classList.remove('show');
+  if ($('#notificationMenu').classList.contains('show')) FX.drop($('#notificationMenu'));
   try { localStorage.setItem(NKEY, Date.now()); } catch (er) {}
   $('#notifNum').hidden = true;
 };
-$('#profileIcon').onclick = e => { e.preventDefault(); $('#profileMenu').classList.toggle('show'); $('#notificationMenu').classList.remove('show'); };
+$('#profileIcon').onclick = e => { e.preventDefault(); $('#profileMenu').classList.toggle('show'); $('#notificationMenu').classList.remove('show'); if ($('#profileMenu').classList.contains('show')) FX.drop($('#profileMenu')); };
 addEventListener('click', e => { if (!e.target.closest('.notification') && !e.target.closest('.profile')) document.querySelectorAll('.dd').forEach(d => d.classList.remove('show')); });
 
 /* ===================== Account / profile ===================== */
@@ -620,11 +648,12 @@ function route() {
   updateStudentSidebarExtras(); paintBottomBar();
 }
 function goNav(v) {                       // teacher: switch page (sidebar or phone bottom bar)
-  nav = v;
+  const changed = nav !== v; nav = v;
   if (v === 'ai') openAITab();
   if (v === 'questions') renderQuestionSets();
   if (v === 'analytics') renderAnalytics();
   route(); scrollTo(0, 0);
+  if (changed) FX.enter(document.querySelector('main .view.on'));
 }
 function paintBottomBar() {               // phone-only tab bar (CSS shows it on small screens)
   const bar = $('#bottomBar'); if (!bar) return;
@@ -808,7 +837,7 @@ function renderStudentClass() {
     </div></div>
     <div id="studentTabBody"></div>`;
 
-  inner.querySelectorAll('[data-student-tab]').forEach(b => { b.onclick = () => { studentTab = b.dataset.studentTab; renderStudentClass(); }; });
+  inner.querySelectorAll('[data-student-tab]').forEach(b => { b.onclick = () => { const changed = studentTab !== b.dataset.studentTab; studentTab = b.dataset.studentTab; renderStudentClass(); if (changed) FX.enter($('#studentTabBody')); }; });
   $('#leaveClassBtn').onclick = leaveStudentClass;
   const body = document.getElementById('studentTabBody');
   if (activeTab === 'home') renderStudentHome(c, scores);
@@ -903,7 +932,7 @@ function renderStudentAssignments(c) {
   const body = document.getElementById('studentTabBody');
   if (!c.assignments.length) { body.innerHTML = `<div class="card"><div class="student-empty">No assignments yet. Check back soon!</div></div>`; return; }
   const rows = studentTodo(c), todo = rows.filter(r => !r.done), done = rows.filter(r => r.done);
-  const item = ({ a, done }) => `<div class="student-post ${done ? 'is-done' : ''}">
+  const item = ({ a, done }) => `<div class="student-post ${done ? 'is-done' : ''}" data-aid="${a.id}">
     <div class="meta">${tAv(teacherOf(c), 'bx-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''} ${dueLabel(a, done)}</small></div>
       ${done ? `<span class="done-tag"><i class='bx bx-check'></i> Done</span>` : ''}</div>
     <p>${esc(a.text)}</p>
@@ -922,6 +951,8 @@ function renderStudentAssignments(c) {
     list = list.includes(id) ? list.filter(x => x !== id) : list.concat(id);
     try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
     renderStudentClass();
+    const moved = document.querySelector(`#studentTabBody [data-aid="${id}"]`);
+    if (moved) { FX.enter(moved); FX.tick(moved.querySelector('.done-tag')); }
   });
   wireStudentBodyHandlers();
 }
@@ -965,7 +996,7 @@ function renderStudentScores(c, scores) {
 
 function wireStudentBodyHandlers() {
   const inner = document.getElementById('studentClassInner'); if (!inner) return;
-  inner.querySelectorAll('[data-student-tab-link]').forEach(b => { b.onclick = () => { studentTab = b.dataset.studentTabLink; renderStudentClass(); }; });
+  inner.querySelectorAll('[data-student-tab-link]').forEach(b => { b.onclick = () => { studentTab = b.dataset.studentTabLink; renderStudentClass(); FX.enter($('#studentTabBody')); }; });
   inner.querySelectorAll('[data-student-play]').forEach(b => { b.onclick = () => { const qs = qsets.find(x => x.id === b.dataset.studentPlay); openGame(b.dataset.game, qs || null); }; });
 }
 
@@ -1223,6 +1254,7 @@ function editQuiz(qsId) {
   clearQEDirty();
   setQEMode('edit');
   document.getElementById('qeScrim').classList.add('show');
+  FX.pop(document.querySelector('#qeScrim .qe-modal') || document.querySelector('#qeScrim > *'), document.getElementById('qeScrim'));
   document.body.style.overflow = 'hidden';
 }
 
@@ -1495,6 +1527,7 @@ function showAuthPopup({ title, body, tone, actions }) {
   const toneStyles = { ok: 'background:#e6f5e9;color:#26890c;border-color:#26890c', warn: 'background:#fff6d6;color:#8a6b00;border-color:#d89e00', bad: 'background:#fde8e6;color:#8a2721;border-color:#8a2721' };
   const ts = toneStyles[tone] || toneStyles.warn;
   modal.innerHTML = '<h3 style="margin:0 0 8px">' + esc(title) + '</h3><div style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid;margin-bottom:14px;' + ts + '">' + (tone === 'ok' ? '✓ Success' : tone === 'bad' ? '✗ Failed' : '⚠ Notice') + '</div><div style="font-size:14px;line-height:1.5;color:var(--dark-grey);white-space:pre-wrap">' + esc(body) + '</div><div class="foot" style="margin-top:18px;flex-wrap:wrap">' + (actions || []).map((a, i) => '<button class="btn ' + (a.kind === 'ghost' ? 'ghost' : '') + '" data-auth-action="' + i + '">' + esc(a.label) + '</button>').join('') + '</div>';
+  if (!scrim.classList.contains('show')) FX.pop(modal, scrim);
   scrim.classList.add('show');
   modal.querySelectorAll('[data-auth-action]').forEach((btn, i) => { btn.onclick = () => { const act = (actions || [])[i]; scrim.classList.remove('show'); if (act && typeof act.onClick === 'function') act.onClick(); }; });
 }
@@ -1540,7 +1573,7 @@ const PUTER_STEPS = [
     body: 'When you’re signed in, the Puter window closes by itself and you can start making quizzes. Tap <b>Open Puter sign-in</b> to begin.' }
 ];
 let puterStep = 0;
-function showPuterTutorial(start) { puterStep = start || 0; paintPuterStep(); $('#authScrim').classList.add('show'); }
+function showPuterTutorial(start) { const was = $('#authScrim').classList.contains('show'); puterStep = start || 0; paintPuterStep(); $('#authScrim').classList.add('show'); if (!was) FX.pop($('#authModal'), $('#authScrim')); }
 function paintPuterStep() {
   const st = PUTER_STEPS[puterStep], last = puterStep === PUTER_STEPS.length - 1;
   $('#authModal').innerHTML = `<div class="pt">
