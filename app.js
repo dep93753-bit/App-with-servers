@@ -1,4 +1,4 @@
-/* AdminHub app.js — teacher UI, student UI, AI quiz maker, game launcher.
+/* ClassQuiz app.js — teacher UI, student UI, AI quiz maker, game launcher.
    Games live in /games/ — see the GAMES list below (and games/_template.html) to add one. */
 
 window.addEventListener('error', function (e) {
@@ -13,7 +13,7 @@ window.addEventListener('error', function (e) {
 });
 
 let nav = 'classes';
-const VIEWS = ['classes', 'ai', 'questions'];
+const VIEWS = ['classes', 'ai', 'questions', 'analytics'];
 
 /* ===================== Identity / mode ===================== */
 let studentIdentity = null;
@@ -42,12 +42,19 @@ function saveStudentSession() {
   } catch (e) {}
 }
 let studentTab = 'home';
+// Every class a student has joined gets its own tab; studentSession is the tab that's open.
+const JKEY = 'adminhub_student_classes_v1';
+let joinedIds = [], studentJoinOpen = false;          // studentJoinOpen = the "+ Join class" tab is showing
+try { joinedIds = JSON.parse(localStorage.getItem(JKEY) || '[]'); } catch (e) {}
+if (studentSession && !joinedIds.includes(studentSession.classId)) joinedIds.push(studentSession.classId);   // saved before tabs existed
+function saveJoined() { try { localStorage.setItem(JKEY, JSON.stringify(joinedIds)); } catch (e) {} }
+function openStudentClass(id) { studentSession = { classId: id, joinedAt: Date.now(), studentId: studentIdentity.id }; saveStudentSession(); studentJoinOpen = false; studentTab = 'home'; }
 
 /* ===================== Storage ===================== */
 const KEY = 'adminhub_classes_v1';
 const RKEY = 'adminhub_remote_v1';      // classes a student loaded from the cloud (kept apart from a teacher's own)
 let cloudScores = {};                    // classId -> score docs from Firestore (teacher side)
-let publishTimer = null, refreshTimer = null, studentWatchCode = null;   // cloud-sync state (declared early: save() can run at startup)
+let publishTimer = null, refreshTimer = null;   // cloud-sync state (declared early: save() can run at startup)
 const cloudWatched = new Set();
 let railOpen = true, classes = [], activeId = null, tab = 'activity', memStore = null, ownOpen = true;
 try { railOpen = localStorage.getItem('adminhub_rail_open') !== '0'; } catch (e) {}
@@ -97,6 +104,32 @@ function classMastery(c) {
   return { total, correct, pct: total ? Math.round(correct / total * 100) : 0 };
 }
 
+// Every game result in a class, newest first: {sid, name, game, quizId, time, correct, total, won, answers}
+function classActivity(c) {
+  const names = Object.fromEntries((c.students || []).map(s => [s.id, s.name])), map = scoresMap(c.id), out = [];
+  Object.keys(map).forEach(sid => map[sid].forEach(s => {
+    const ans = s.answers || [];
+    out.push({ sid, name: names[sid] || (sid === '__legacy' ? 'Earlier player' : 'Student'), game: s.game, quizId: s.quizId, time: s.time,
+      correct: ans.filter(a => a.correct).length, total: ans.length, won: s.won, answers: ans });
+  }));
+  return out.sort((a, b) => b.time - a.time);
+}
+const gameName = id => (GAMES.find(g => g.id === id) || { name: id || 'a game' }).name;
+const activityLine = a => `<div class="li"><span><b>${esc(a.name)}</b> played ${esc(gameName(a.game))}${a.total ? ` · ${a.correct}/${a.total} correct` : ''}</span><span>${fmt(a.time)}</span></div>`;
+// Class leaderboard, best first: [{sid, name, correct, answered}]. The teacher's device works it out from the
+// scores and publishes it with the class (only while the setting is on); students read that published copy.
+function leaderboardFor(c) {
+  if (c.remote) return Array.isArray(c.leaderboard) ? c.leaderboard : [];
+  const map = scoresMap(c.id), rows = {};
+  (c.students || []).forEach(s => { rows[s.id] = { sid: s.id, name: s.name, correct: 0, answered: 0 }; });
+  Object.keys(map).forEach(sid => {
+    if (sid === '__legacy' || sid === '__anon') return;
+    const r = rows[sid] || (rows[sid] = { sid, name: 'Student', correct: 0, answered: 0 });
+    map[sid].forEach(s => (s.answers || []).forEach(a => { r.answered++; if (a.correct) r.correct++; }));
+  });
+  return Object.values(rows).sort((a, b) => b.correct - a.correct || a.name.localeCompare(b.name));
+}
+
 /* ===================== Helpers ===================== */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -133,7 +166,7 @@ function createClass() {
 }
 function showCode() {
   const c = cur(); c.codeShared = true; save();
-  openModal(`<h3>Join class</h3><p class="sub">Students enter this code to join <b>${esc(c.name)}</b>.</p>
+  openModal(`<h3>Join code</h3><p class="sub">Students enter this code to join <b>${esc(c.name)}</b>.</p>
   <div class="code">${c.code}</div>
   <div class="foot"><button class="btn ghost" data-x>Close</button><button class="btn" data-copy>Copy code</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
@@ -146,10 +179,12 @@ function showSettings() {
   openModal(`<h3>Teacher settings</h3><p class="sub">${esc(c.name)}</p>
   <div class="set"><div>Allow students to post<small>Students can write on the wall</small></div><label class="sw"><input type="checkbox" id="s1" ${s.studentsCanPost ? 'checked' : ''}><span></span></label></div>
   <div class="set"><div>Show posts wall<small>Students can see the wall</small></div><label class="sw"><input type="checkbox" id="s2" ${s.wallVisible ? 'checked' : ''}><span></span></label></div>
+  <div class="set"><div>Class leaderboard<small>Students see the whole class ranked by correct answers and can compete</small></div><label class="sw"><input type="checkbox" id="s3" ${s.leaderboard ? 'checked' : ''}><span></span></label></div>
   <div class="set"><div>Join code<small>${c.code}</small></div><button class="btn ghost" id="sc">Show</button></div>
   <div class="foot" style="margin-top:20px"><button class="btn danger" id="dc">Delete class</button><button class="btn" id="sv">Done</button></div>`);
   $('#s1').onchange = e => { s.studentsCanPost = e.target.checked; save(); render(); };
   $('#s2').onchange = e => { s.wallVisible = e.target.checked; save(); render(); };
+  $('#s3').onchange = e => { s.leaderboard = e.target.checked; save(); render(); toast(s.leaderboard ? 'Leaderboard on for students' : 'Leaderboard hidden'); };
   $('#sc').onclick = showCode;
   $('#sv').onclick = closeModal;
   $('#dc').onclick = () => { if (confirm('Delete "' + c.name + '"? This cannot be undone.')) {
@@ -200,7 +235,18 @@ function dashHtml(c) {
       }).join('')
     : '<div class="none">No students yet. Share the join code.</div>';
 
-  return `<div class="dmeta"><span>Class report</span><span>Created ${fmt(c.created)}</span></div>
+  const acts = classActivity(c), today = acts.filter(a => a.time >= Date.now() - 864e5);
+  let tTot = 0, tCor = 0; today.forEach(a => { tTot += a.total; tCor += a.correct; });
+  const todayHtml = `<div class="sec">Last 24 hours</div>
+  <div class="today">
+    <div class="tstat"><b>${today.length}</b><small>games played</small></div>
+    <div class="tstat"><b>${new Set(today.map(a => a.sid)).size}</b><small>students active</small></div>
+    <div class="tstat"><b>${tTot ? Math.round(tCor / tTot * 100) + '%' : '—'}</b><small>answers correct</small></div>
+    <div class="tstat"><b>${c.assignments.length}</b><small>assignments posted</small></div>
+  </div>
+  <div class="rep feed"><h4>Latest activity</h4>${acts.length ? acts.slice(0, 5).map(activityLine).join('') : '<div class="none">No games played yet. Activity shows up here as students play.</div>'}</div>`;
+
+  return `${todayHtml}<div class="dmeta"><span>Class report</span><span>Created ${fmt(c.created)}</span></div>
   <div class="sumrow">
     <div class="sum ringbox">
       <div class="ring">
@@ -217,7 +263,7 @@ function dashHtml(c) {
       <div class="stat"><span><i class='bx bxs-joystick'></i>Games played</span><b>${gamesPlayed}</b></div>
       <div class="stat"><span><i class='bx bxs-task'></i>Assignments</span><b>${c.assignments.length}</b></div>
     </div>
-    <div class="sum promo"><small>Join code</small><div class="pc">${c.code}</div><button data-act="code">Join class</button></div>
+    <div class="sum promo"><small>Join code</small><div class="pc">${c.code}</div><button data-act="code">Show code</button></div>
   </div>
   <div class="sec">Class reports</div>
   <div class="reports">
@@ -373,10 +419,11 @@ function render() {
       </div>`;
       body += listHtml(c.assignments, 'assignments', 'No assignments yet. Use "Assign quiz" above to add one.', { showStats: true });
     }
-    v.innerHTML = `<div class="ctop"><h1>${esc(c.name)}</h1><div class="tools"><i class='bx bx-list-check' id="qsShortcut" title="Question sets" tabindex="0" style="cursor:pointer"></i><div class="avatar" style="background:#aaa;width:48px;height:48px"><i class='bx bxs-user'></i></div><i class='bx bx-cog' id="gear" title="Teacher settings" tabindex="0"></i></div></div>
-      <div class="row"><div class="tabs">${['activity','dashboard','assignments'].map(t => `<button data-tab="${t}" class="${tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
-      <button class="btn" id="joinBtn">Join class</button></div>${body}`;
+    const picker = `<div class="classpick"><select id="classPick" aria-label="Switch class">${classes.map(x => `<option value="${x.id}" ${x.id === activeId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="__new">+ Create class</option></select></div>`;
+    v.innerHTML = `${picker}<div class="ctop"><h1>${esc(c.name)}</h1><div class="tools"><button class="codechip" id="joinBtn" title="Show and copy the join code"><small>Join code</small><b>${esc(c.code)}</b><i class='bx bx-copy'></i></button><i class='bx bx-list-check' id="qsShortcut" title="Question sets" tabindex="0" style="cursor:pointer"></i><i class='bx bx-cog' id="gear" title="Teacher settings" tabindex="0"></i></div></div>
+      <div class="row"><div class="tabs">${['activity','dashboard','assignments'].map(t => `<button data-tab="${t}" class="${tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>${body}`;
   }
+  paintNotifs();
   route();
 }
 
@@ -405,6 +452,11 @@ $('#classView').addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (!a) return;
   ({ post: focusPost, share: showCode, assign: addAssignment, code: showCode })[a.dataset.act]();
 });
+$('#classView').addEventListener('change', e => {
+  if (e.target.id !== 'classPick') return;
+  if (e.target.value === '__new') { e.target.value = activeId; return createClass(); }
+  activeId = e.target.value; cur().opened = Date.now(); save(); tab = 'activity'; render();
+});
 $('#classView').addEventListener('keydown', e => { if (e.target.id === 'postBox' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addPost(e.target.value); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
 
@@ -412,7 +464,25 @@ const sidebar = $('#sidebar');
 $('#content nav .bx-menu').onclick = () => sidebar.classList.toggle('hide');
 function adjust() { sidebar.classList.toggle('hide', window.innerWidth <= 576); }
 addEventListener('load', adjust); addEventListener('resize', adjust);
-$('#notificationIcon').onclick = e => { e.preventDefault(); $('#notificationMenu').classList.toggle('show'); $('#profileMenu').classList.remove('show'); };
+const NKEY = 'adminhub_notif_seen_v1';
+function teacherActivity() { return [].concat(...classes.filter(c => !c.remote).map(c => classActivity(c).map(a => ({ ...a, cls: c.name })))).sort((a, b) => b.time - a.time); }
+function paintNotifs() {              // the bell lists students' latest games (teachers only)
+  const bell = $('#notificationIcon'); if (!bell) return;
+  bell.style.display = uiMode === 'teacher' ? '' : 'none';
+  if (uiMode !== 'teacher') return;
+  let seen = 0; try { seen = +localStorage.getItem(NKEY) || 0; } catch (e) {}
+  const items = teacherActivity(), fresh = items.filter(a => a.time > seen).length, num = $('#notifNum');
+  num.hidden = !fresh; num.textContent = fresh > 9 ? '9+' : fresh;
+  $('#notifList').innerHTML = items.length
+    ? items.slice(0, 8).map(a => `<li><b>${esc(a.name)}</b> played ${esc(gameName(a.game))} in ${esc(a.cls)}${a.total ? ` — ${a.correct}/${a.total} correct` : ''}<small>${fmt(a.time)}</small></li>`).join('')
+    : '<li class="none">No student activity yet. When students play, it shows up here.</li>';
+}
+$('#notificationIcon').onclick = e => {
+  e.preventDefault(); paintNotifs();
+  $('#notificationMenu').classList.toggle('show'); $('#profileMenu').classList.remove('show');
+  try { localStorage.setItem(NKEY, Date.now()); } catch (er) {}
+  $('#notifNum').hidden = true;
+};
 $('#profileIcon').onclick = e => { e.preventDefault(); $('#profileMenu').classList.toggle('show'); $('#notificationMenu').classList.remove('show'); };
 addEventListener('click', e => { if (!e.target.closest('.notification') && !e.target.closest('.profile')) document.querySelectorAll('.dd').forEach(d => d.classList.remove('show')); });
 
@@ -429,10 +499,20 @@ function paintAvatar() {
 }
 function openProfile() {
   const p = Cloud.profile || {}; let photo = p.photo || '';
-  openModal(`<h3>My profile</h3><p class="sub">${esc((Cloud.user && Cloud.user.email) || '')} · ${p.role === 'student' ? 'Student' : 'Teacher'}</p>
+  const oldRole = p.role === 'student' ? 'student' : 'teacher'; let role = oldRole;
+  openModal(`<h3>My account</h3><p class="sub">${esc((Cloud.user && Cloud.user.email) || '')}</p>
   <div class="pf-row"><img id="pfImg" alt=""><div><button class="btn ghost" id="pfPick">Change photo</button> <button class="btn ghost" id="pfClear">Remove</button><input type="file" id="pfFile" accept="image/*" hidden></div></div>
   <label class="pf-l">Display name</label><input type="text" id="pfName" maxlength="30" value="${esc(p.displayName || '')}">
+  <label class="pf-l">I use ClassQuiz as a</label>
+  <div class="role-pick"><button type="button" data-role="teacher"><i class='bx bxs-graduation'></i> Teacher</button><button type="button" data-role="student"><i class='bx bxs-user'></i> Student</button></div>
+  <small class="pf-note" id="pfRoleNote"></small>
   <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" id="pfSave">Save</button></div>`);
+  const paintRole = () => {
+    document.querySelectorAll('#modal [data-role]').forEach(b => b.classList.toggle('on', b.dataset.role === role));
+    $('#pfRoleNote').textContent = role === oldRole ? '' : 'Saving switches you to the ' + role + ' side and reloads the app. Your classes and scores stay saved.';
+  };
+  document.querySelectorAll('#modal [data-role]').forEach(b => { b.onclick = () => { role = b.dataset.role; paintRole(); }; });
+  paintRole();
   const show = () => { $('#pfImg').src = photo || $('#profileIcon img').src; };
   show();
   $('#pfPick').onclick = () => $('#pfFile').click();
@@ -441,13 +521,16 @@ function openProfile() {
   $('#modal [data-x]').onclick = closeModal;
   $('#pfSave').onclick = async () => {
     const name = $('#pfName').value.trim(); if (!name) return toast('Enter a display name');
+    if (!Cloud.saveProfile) return toast('Connect to the internet to change your account');
     try {
+      if (role !== oldRole) { await Cloud.saveProfile({ displayName: name, photo, role }); toast('Switching to ' + role + '…'); setTimeout(() => location.reload(), 500); return; }
       await Cloud.saveProfile({ displayName: name, photo });
       studentIdentity.name = name; saveStudentIdentity(); paintAvatar(); cloudPublishSoon(); if (uiMode === 'teacher') render(); closeModal(); toast('Profile saved');
     } catch (er) { toast('Could not save: ' + (er.code || er.message)); }
   };
 }
 $('#pmProfile').onclick = openProfile;
+$('#settingsLink').onclick = e => { e.preventDefault(); openProfile(); };
 $('#pmOut').onclick = () => Cloud.signOut();
 $('#appLogout').onclick = e => { e.preventDefault(); Cloud.signOut(); };
 
@@ -458,28 +541,44 @@ function route() {
   if (sm) sm.style.display = uiMode === 'student' ? '' : 'none';
   if (uiMode === 'student') {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
-    if (studentSession) { const sv = document.getElementById('studentClassView'); if (sv) sv.classList.add('on'); renderStudentClass(); }
+    renderStudentTabs(); paintNotifs();
+    if (studentSession && !studentJoinOpen) { const sv = document.getElementById('studentClassView'); if (sv) sv.classList.add('on'); renderStudentClass(); }
     else { const jv = document.getElementById('studentJoinView'); if (jv) jv.classList.add('on'); renderStudentJoin(); }
-    updateStudentSidebarExtras();
+    updateStudentSidebarExtras(); paintBottomBar();
     return;
   }
+  $('#studentClassTabs').hidden = true;
+  paintNotifs();
   const sj = document.getElementById('studentJoinView'), sc = document.getElementById('studentClassView');
   if (sj) sj.classList.remove('on');
   if (sc) sc.classList.remove('on');
   VIEWS.forEach(v => { const el = document.querySelector('.view[data-view="' + v + '"]'); if (el) el.classList.toggle('on', nav === v); });
   document.querySelectorAll('#sidebar .teacher-menu li').forEach(li => li.classList.toggle('active', (li.dataset.view || '') === nav));
-  updateStudentSidebarExtras();
+  updateStudentSidebarExtras(); paintBottomBar();
 }
+function goNav(v) {                       // teacher: switch page (sidebar or phone bottom bar)
+  nav = v;
+  if (v === 'ai') { renderChat(); ensureAuth().then(() => { updateAuthBadge(); updateLogoutVisibility(); }).catch(() => {}); }
+  if (v === 'questions') renderQuestionSets();
+  if (v === 'analytics') renderAnalytics();
+  route(); scrollTo(0, 0);
+}
+function paintBottomBar() {               // phone-only tab bar (CSS shows it on small screens)
+  const bar = $('#bottomBar'); if (!bar) return;
+  const items = uiMode === 'teacher'
+    ? [['classes', 'bxs-graduation', 'Classes'], ['ai', 'bxs-bot', 'AI Quiz'], ['questions', 'bx-list-check', 'Questions'], ['analytics', 'bxs-doughnut-chart', 'Analytics'], ['account', 'bxs-user-circle', 'Account']]
+    : [['classes', 'bxs-graduation', 'My classes'], ['account', 'bxs-user-circle', 'Account']];
+  const on = uiMode === 'teacher' ? nav : 'classes';
+  bar.innerHTML = items.map(([id, ic, label]) => `<button data-bb="${id}" class="${id === on ? 'on' : ''}"><i class='bx ${ic}'></i><span>${label}</span></button>`).join('');
+}
+$('#bottomBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-bb]'); if (!b) return;
+  if (b.dataset.bb === 'account') return openProfile();
+  if (uiMode === 'teacher') goNav(b.dataset.bb); else route();
+});
 document.querySelectorAll('#sidebar .teacher-menu li').forEach(li => {
   const a = li.querySelector('a'); if (!a) return;
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    const v = li.dataset.view; if (!v) return;
-    nav = v;
-    if (v === 'ai') { renderChat(); ensureAuth().then(() => { updateAuthBadge(); updateLogoutVisibility(); }).catch(() => {}); }
-    if (v === 'questions') renderQuestionSets();
-    route();
-  });
+  a.addEventListener('click', e => { e.preventDefault(); if (li.dataset.view) goNav(li.dataset.view); });
 });
 
 /* ===================== Student side ===================== */
@@ -525,15 +624,15 @@ function renderStudentJoin() {
     }
     if (!c) { if (err) { err.textContent = joinFail ? 'Could not reach the class (' + joinFail + ').' : 'No class found with that code. Check with your teacher.'; err.style.display = 'block'; } return; }
     if (err) err.style.display = 'none';
-    studentSession = { classId: c.id, joinedAt: Date.now(), studentId: studentIdentity.id };
-    saveStudentSession();
+    const already = joinedIds.includes(c.id);
+    if (!already) { joinedIds.push(c.id); saveJoined(); }
+    openStudentClass(c.id);
     registerStudentInClass(c);
     const me = c.students.find(s => s.id === studentIdentity.id);
     Cloud.joinClass(c.code, { sid: studentIdentity.id, name: studentIdentity.name, joinedAt: me ? me.joinedAt : Date.now() }).catch(() => {});
     cloudWatchStudent();
     c.opened = Date.now(); save();
-    studentTab = 'home';
-    toast('Joined ' + c.name);
+    toast(already ? 'You’re already in ' + c.name : 'Joined ' + c.name + ' — it has its own tab now');
     route(); updateStudentSidebarExtras();
   };
   btn.onclick = submit;
@@ -544,7 +643,7 @@ function renderStudentJoin() {
 function leaveStudentClass() {
   if (!studentSession) return;
   const c = classes.find(x => x.id === studentSession.classId);
-  if (!c) { studentSession = null; saveStudentSession(); route(); updateStudentSidebarExtras(); return; }
+  if (!c) { joinedIds = joinedIds.filter(id => id !== studentSession.classId); saveJoined(); studentSession = null; saveStudentSession(); route(); return; }
   openModal(`<h3>Leave ${esc(c.name)}?</h3>
     <p class="sub" style="margin-bottom:16px">You'll need the class code your teacher gave you to rejoin.</p>
     <div style="padding:12px 14px;background:#fff6d6;border-radius:8px;border-left:3px solid #d89e00;font-size:13px;color:#5a4100;margin-bottom:16px">
@@ -561,7 +660,9 @@ function leaveStudentClass() {
       <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn danger" data-final>I'm sure, leave class</button></div>`);
     $('#modal [data-x]').onclick = closeModal;
     $('#modal [data-final]').onclick = () => {
-      studentSession = null; saveStudentSession(); closeModal(); toast('Left class');
+      joinedIds = joinedIds.filter(id => id !== c.id); saveJoined();
+      if (joinedIds.length) openStudentClass(joinedIds[0]); else { studentSession = null; saveStudentSession(); }
+      closeModal(); toast('Left ' + c.name);
       route(); updateStudentSidebarExtras();
     };
   };
@@ -575,6 +676,20 @@ window.addEventListener('message', e => {
   recordScore(studentSession.classId, d.game || 'unknown', d.quizId || 'preset', !!d.won, d.score, d.answers || []);
 });
 
+function renderStudentTabs() {
+  const box = $('#studentClassTabs'); if (!box) return;
+  box.hidden = !joinedIds.length;
+  if (!joinedIds.length) return;
+  const active = studentJoinOpen || !studentSession ? '__join' : studentSession.classId;
+  box.innerHTML = joinedIds.map(id => { const c = classes.find(x => x.id === id);
+      return `<button class="ctab ${active === id ? 'on' : ''}" data-class-tab="${esc(id)}"><i class='bx bxs-graduation'></i>${esc(c ? c.name : 'Class unavailable')}</button>`; }).join('')
+    + `<button class="ctab add ${active === '__join' ? 'on' : ''}" data-class-tab="__join"><i class='bx bx-plus'></i>Join class</button>`;
+  box.querySelectorAll('[data-class-tab]').forEach(b => { b.onclick = () => {
+    if (b.dataset.classTab === '__join') studentJoinOpen = true; else { openStudentClass(b.dataset.classTab); cloudWatchStudent(); }
+    route();
+  }; });
+}
+
 function renderStudentClass() {
   const inner = document.getElementById('studentClassInner');
   if (!inner) return;
@@ -584,10 +699,14 @@ function renderStudentClass() {
     inner.innerHTML = `<div class="student-join-wrap"><div class="student-join-card">
       <div class="sj-icon" style="background:#fde8e6;color:#8a2721"><i class='bx bx-error-circle'></i></div>
       <h1>Class unavailable</h1><p>Your teacher's class is no longer available. You can join a different class with a new code.</p>
-      <button class="btn" id="studentResetBtn">Join a different class</button>
+      <button class="btn" id="studentResetBtn">Remove this tab</button>
     </div></div>`;
     const b = document.getElementById('studentResetBtn');
-    if (b) b.onclick = () => { studentSession = null; saveStudentSession(); route(); updateStudentSidebarExtras(); };
+    if (b) b.onclick = () => {
+      joinedIds = joinedIds.filter(id => id !== studentSession.classId); saveJoined();
+      if (joinedIds.length) openStudentClass(joinedIds[0]); else { studentSession = null; saveStudentSession(); studentJoinOpen = true; }
+      route();
+    };
     return;
   }
   const scores = getStudentScores(c.id, studentIdentity.id);
@@ -598,6 +717,7 @@ function renderStudentClass() {
     { id: 'practice', label: 'Practice', icon: 'bxs-book' },
     { id: 'scores', label: 'My scores', icon: 'bxs-bar-chart-alt-2' }
   ];
+  if (c.settings && c.settings.leaderboard) tabs.splice(4, 0, { id: 'leaderboard', label: 'Leaderboard', icon: 'bxs-trophy' });
   const activeTab = tabs.find(t => t.id === studentTab) ? studentTab : 'home';
 
   inner.innerHTML = `
@@ -606,6 +726,7 @@ function renderStudentClass() {
         <h1>${esc(c.name)}</h1>
         <div class="cls-meta"><span class="student-name-pill"><i class='bx bxs-user'></i> ${esc(studentIdentity.name || 'Student')}</span> &nbsp; <span class="student-badge"><i class='bx bxs-graduation'></i> Class code ${esc(c.code)}</span></div>
       </div>
+      <button class="leave-link" id="leaveClassBtn"><i class='bx bx-log-out'></i> Leave class</button>
     </div>
     <div class="row"><div class="tabs">
       ${tabs.map(t => `<button data-student-tab="${t.id}" class="${activeTab === t.id ? 'on' : ''}"><i class='bx ${t.icon}'></i>${t.label}</button>`).join('')}
@@ -613,13 +734,30 @@ function renderStudentClass() {
     <div id="studentTabBody"></div>`;
 
   inner.querySelectorAll('[data-student-tab]').forEach(b => { b.onclick = () => { studentTab = b.dataset.studentTab; renderStudentClass(); }; });
+  $('#leaveClassBtn').onclick = leaveStudentClass;
   const body = document.getElementById('studentTabBody');
   if (activeTab === 'home') renderStudentHome(c, scores);
   else if (activeTab === 'posts') renderStudentPosts(c);
   else if (activeTab === 'assignments') renderStudentAssignments(c);
   else if (activeTab === 'practice') renderStudentPractice(c);
   else if (activeTab === 'scores') renderStudentScores(c, scores);
+  else if (activeTab === 'leaderboard') renderStudentLeaderboard(c);
 }
+
+function renderStudentLeaderboard(c) {
+  const body = document.getElementById('studentTabBody'), rows = leaderboardFor(c), me = studentIdentity.id;
+  if (!rows.length) { body.innerHTML = `<div class="card"><div class="student-empty"><i class='bx bxs-trophy' style="font-size:42px;color:var(--blue);display:block;margin-bottom:12px"></i>No one is on the leaderboard yet. Answer questions in any game to get on it!</div></div>`; return; }
+  let rank = 0, prev = null;
+  body.innerHTML = `<div class="card lb">${rows.map((r, i) => {
+      if (r.correct !== prev) { rank = i + 1; prev = r.correct; }
+      const place = rank <= 3 && r.correct > 0 ? ['🥇', '🥈', '🥉'][rank - 1] : rank;
+      return `<div class="lb-row ${r.sid === me ? 'me' : ''}"><div class="lb-rank">${place}</div><div class="lb-name">${esc(r.name)}${r.sid === me ? ' <small>(you)</small>' : ''}</div><div class="lb-score"><b>${r.correct}</b><small>correct</small></div></div>`;
+    }).join('')}</div>
+    <p class="lb-note">Ranked by correct answers across every game. It updates whenever your teacher has ClassQuiz open.</p>`;
+}
+
+// Question sets a student can play in one class: that class's sets plus the built-in Preset Quiz.
+const studentSetsFor = c => qsets.filter(q => q.practiceAllowed !== false && (!q._remote || q._remote === c.code));
 
 function renderStudentHome(c, scores) {
   const body = document.getElementById('studentTabBody');
@@ -627,7 +765,7 @@ function renderStudentHome(c, scores) {
   const showWall = c.settings && c.settings.wallVisible !== false;
   const nextAssign = c.assignments[0] || null;
   const recentPosts = showWall ? c.posts.slice(0, 3) : [];
-  const practiceSets = qsets.filter(q => q.practiceAllowed !== false);
+  const practiceSets = studentSetsFor(c);
 
   let nextAssignBlock = '';
   if (nextAssign) {
@@ -636,7 +774,7 @@ function renderStudentHome(c, scores) {
       <div class="shline">
         <div class="shl-icon"><i class='bx bxs-task'></i></div>
         <div class="shl-info"><b>${esc(nextAssign.text)}</b><small>${fmt(nextAssign.time)}${nextAssign.kind === 'quiz' ? ' · quiz' : ''}</small></div>
-        ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions"><button class="playbtn battleship" data-student-play="${nextAssign.quizId}" data-game="battleship"><i class='bx bxs-ship'></i> Play</button></div>` : ''}
+        ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions"><button class="playbtn browse" data-browse="${nextAssign.quizId}"><i class='bx bxs-joystick'></i> Play</button></div>` : ''}
       </div>
       <button class="seeall" data-student-tab-link="assignments">See all assignments</button>
     </div>`;
@@ -667,7 +805,7 @@ function renderStudentHome(c, scores) {
       <h3><i class='bx bxs-book'></i> Quick practice</h3>
       <p style="color:var(--dark-grey);font-size:14px;margin-bottom:12px">Play a game with any question set your teacher opened for practice.</p>
       <div class="shquick">
-        ${practiceSets.length ? practiceSets.slice(0, 3).map(q => `<button class="playbtn battleship" data-student-play="${q.id}" data-game="battleship"><i class='bx bxs-ship'></i> ${esc(q.title)}</button>`).join('') : '<div class="student-empty" style="padding:12px">No practice sets available yet.</div>'}
+        ${practiceSets.length ? practiceSets.slice(0, 3).map(q => `<button class="playbtn browse" data-browse="${q.id}"><i class='bx bxs-joystick'></i> ${esc(q.title)}</button>`).join('') : '<div class="student-empty" style="padding:12px">No practice sets available yet.</div>'}
       </div>
     </div>`;
   wireStudentBodyHandlers();
@@ -695,7 +833,7 @@ function renderStudentAssignments(c) {
 
 function renderStudentPractice(c) {
   const body = document.getElementById('studentTabBody');
-  const available = qsets.filter(q => q.practiceAllowed !== false);
+  const available = studentSetsFor(c);
   if (!available.length) { body.innerHTML = `<div class="qb-empty"><i class='bx bxs-book'></i><h3>No practice sets yet</h3><p style="margin:8px 0 16px">Your teacher hasn't opened any question sets for practice.</p></div>`; return; }
   body.innerHTML = available.map(qs => `<div class="qset">
     <div class="top"><div class="info"><b>${esc(qs.title)}</b><small>${qs.questions.length} questions${qs.grade ? ' · ' + esc(qs.grade) : ''}${qs.difficulty ? ' · ' + esc(qs.difficulty) : ''}</small></div></div>
@@ -735,6 +873,74 @@ function wireStudentBodyHandlers() {
   inner.querySelectorAll('[data-student-tab-link]').forEach(b => { b.onclick = () => { studentTab = b.dataset.studentTabLink; renderStudentClass(); }; });
   inner.querySelectorAll('[data-student-play]').forEach(b => { b.onclick = () => { const qs = qsets.find(x => x.id === b.dataset.studentPlay); openGame(b.dataset.game, qs || null); }; });
 }
+
+/* ===================== Teacher: analytics ===================== */
+let anClassId = null;
+function renderAnalytics() {
+  const box = $('#anBody'); if (!box) return;
+  const own = classes.filter(c => !c.remote);
+  if (!own.length) { box.innerHTML = `<div class="card"><div class="empty">Create a class first. Its stats show up here once students play.</div></div>`; return; }
+  if (!own.some(c => c.id === anClassId)) anClassId = (own.find(c => c.id === activeId) || own[0]).id;
+  const c = own.find(x => x.id === anClassId), acts = classActivity(c), weekAgo = Date.now() - 7 * 864e5;
+  let tot = 0, cor = 0; acts.forEach(a => { tot += a.total; cor += a.correct; });
+  // per student
+  const per = {};
+  (c.students || []).forEach(s => { per[s.id] = { name: s.name, games: 0, total: 0, correct: 0, last: 0 }; });
+  acts.forEach(a => { const p = per[a.sid] || (per[a.sid] = { name: a.name, games: 0, total: 0, correct: 0, last: 0 });
+    p.games++; p.total += a.total; p.correct += a.correct; p.last = Math.max(p.last, a.time); });
+  const studs = Object.values(per).map(p => ({ ...p, pct: p.total ? Math.round(p.correct / p.total * 100) : null }))
+    .sort((a, b) => (b.pct === null ? -1 : b.pct) - (a.pct === null ? -1 : a.pct) || a.name.localeCompare(b.name));
+  const needHelp = studs.filter(p => p.total >= 5 && p.pct < 60).sort((a, b) => a.pct - b.pct);
+  // most-missed questions (at least 2 attempts)
+  const q = {};
+  acts.forEach(a => a.answers.forEach(x => { const k = a.quizId + '|' + x.qIdx, e = q[k] || (q[k] = { quizId: a.quizId, qIdx: x.qIdx, total: 0, wrong: 0 }); e.total++; if (!x.correct) e.wrong++; }));
+  const missed = Object.values(q).filter(e => e.total >= 2 && e.wrong > 0).map(e => {
+    const set = qsets.find(x => x.id === e.quizId) || (e.quizId === 'preset' ? { title: 'Preset Quiz', questions: PRESET_QUESTIONS } : null);
+    const qq = set && set.questions[e.qIdx];
+    return { ...e, pct: Math.round(e.wrong / e.total * 100), text: qq ? qq.question : 'Question ' + (e.qIdx + 1), set: set ? set.title : '' };
+  }).sort((a, b) => b.pct - a.pct || b.total - a.total).slice(0, 6);
+  // games played
+  const gm = {}; acts.forEach(a => { gm[a.game] = (gm[a.game] || 0) + 1; });
+  const gmax = Math.max(1, ...Object.values(gm));
+  const lbOn = !!(c.settings && c.settings.leaderboard), lb = leaderboardFor(c).slice(0, 5);
+  const bar = (pct, cls) => `<div class="an-bar"><i class="${cls || ''}" style="width:${Math.max(2, pct)}%"></i></div>`;
+  const tone = pct => pct === null ? '' : pct < 60 ? 'low' : pct < 80 ? 'mid' : 'ok';
+
+  box.innerHTML = `
+    <div class="an-classes">${own.map(x => `<button class="ctab ${x.id === c.id ? 'on' : ''}" data-an-class="${x.id}">${esc(x.name)}</button>`).join('')}</div>
+    <div class="today">
+      <div class="tstat"><b>${(c.students || []).length}</b><small>students</small></div>
+      <div class="tstat"><b>${acts.length}</b><small>games played</small></div>
+      <div class="tstat"><b>${tot ? Math.round(cor / tot * 100) + '%' : '—'}</b><small>answers correct</small></div>
+      <div class="tstat"><b>${new Set(acts.filter(a => a.time >= weekAgo).map(a => a.sid)).size}</b><small>active this week</small></div>
+    </div>
+    <div class="an-grid">
+      <div class="rep"><h4><i class='bx bxs-error-circle' style="color:var(--red);margin-right:6px"></i>Needs help</h4>
+        ${needHelp.length ? needHelp.map(p => `<div class="an-q"><b>${esc(p.name)}</b> — ${p.pct}% correct<small>${p.correct} of ${p.total} answers · ${p.games} game${p.games === 1 ? '' : 's'}</small>${bar(p.pct, 'low')}</div>`).join('')
+          : '<div class="none">Nobody is below 60% (students show up here after 5+ answers).</div>'}</div>
+      <div class="rep"><h4><i class='bx bx-question-mark' style="color:#d89e00;margin-right:6px"></i>Most-missed questions</h4>
+        ${missed.length ? missed.map(m => `<div class="an-q">${esc(m.text)}<small>${m.pct}% missed · ${m.wrong} of ${m.total} attempts${m.set ? ' · ' + esc(m.set) : ''}</small>${bar(m.pct, 'low')}</div>`).join('')
+          : '<div class="none">Not enough answers yet.</div>'}</div>
+      <div class="rep"><h4><i class='bx bxs-joystick' style="color:var(--blue);margin-right:6px"></i>Games played</h4>
+        ${Object.keys(gm).length ? Object.keys(gm).sort((a, b) => gm[b] - gm[a]).map(g => `<div class="an-q">${esc(gameName(g))}<small>${gm[g]} game${gm[g] === 1 ? '' : 's'}</small>${bar(gm[g] / gmax * 100)}</div>`).join('')
+          : '<div class="none">No games played yet.</div>'}</div>
+      <div class="rep"><h4><i class='bx bxs-trophy' style="color:#d89e00;margin-right:6px"></i>Leaderboard <span class="badge">${lbOn ? 'Students can see it' : 'Hidden from students'}</span></h4>
+        ${lb.length ? lb.map((r, i) => `<div class="li"><span>${i + 1}. ${esc(r.name)}</span><span>${r.correct} correct</span></div>`).join('') : '<div class="none">No students yet.</div>'}
+        <button class="btn ghost" style="margin-top:12px;align-self:flex-start" data-an-lb>${lbOn ? 'Hide from students' : 'Show to students'}</button></div>
+    </div>
+    <div class="rep an-table"><h4>Students</h4>
+      ${studs.length ? `<table><thead><tr><th>Student</th><th>Games</th><th>Correct</th><th style="width:30%">Accuracy</th><th>Last played</th></tr></thead><tbody>
+        ${studs.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${p.games}</td><td>${p.correct}/${p.total}</td><td>${p.pct === null ? '<span class="dim">—</span>' : p.pct + '%' + bar(p.pct, tone(p.pct))}</td><td>${p.last ? fmt(p.last) : '<span class="dim">Not yet</span>'}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="none">No students yet. Share the join code.</div>'}</div>`;
+}
+$('#anBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-an-class]'); if (b) { anClassId = b.dataset.anClass; return renderAnalytics(); }
+  if (e.target.closest('[data-an-lb]')) {
+    const c = classes.find(x => x.id === anClassId); if (!c) return;
+    c.settings.leaderboard = !c.settings.leaderboard; save(); renderAnalytics();
+    toast(c.settings.leaderboard ? 'Leaderboard on for students' : 'Leaderboard hidden');
+  }
+});
 
 /* ===================== Questions storage ===================== */
 const QKEY = 'adminhub_questions_v2';
@@ -1363,11 +1569,14 @@ const qsetsFor = c => qsets.filter(q => !q._remote && (q.practiceAllowed !== fal
 function cloudPublishSoon() { clearTimeout(publishTimer); publishTimer = setTimeout(cloudPublishAll, 1500); }
 async function cloudPublishAll() {
   if (!(await Cloud.ready)) return;
-  classes.filter(c => !c.remote).forEach(c => Cloud.publishClass(c, qsetsFor(c)).catch(e => console.warn('Publish failed', e)));
+  classes.filter(c => !c.remote).forEach(c => {
+    c.leaderboard = c.settings && c.settings.leaderboard ? leaderboardFor(c) : [];   // students only see it while it's switched on
+    Cloud.publishClass(c, qsetsFor(c)).catch(e => console.warn('Publish failed', e));
+  });
   if (uiMode === 'teacher') Cloud.saveQsets(qsets.filter(q => !q._remote)).catch(e => console.warn('Question backup failed', e));
   cloudWatchTeacher();
 }
-function cloudRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (uiMode === 'teacher') render(); }, 600); }
+function cloudRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (uiMode === 'teacher') { render(); if (nav === 'analytics') renderAnalytics(); } }, 600); }
 function cloudWatchTeacher() {            // pull students + scores from students' devices into the teacher's screens
   classes.filter(c => !c.remote).forEach(c => {
     if (cloudWatched.has(c.id)) return; cloudWatched.add(c.id);
@@ -1380,7 +1589,7 @@ function cloudWatchTeacher() {            // pull students + scores from student
       });
       if (changed) { save(); cloudRefresh(); }
     });
-    Cloud.watchScores(c.code, list => { cloudScores[c.id] = list; cloudRefresh(); });
+    Cloud.watchScores(c.code, list => { cloudScores[c.id] = list; cloudRefresh(); if (c.settings && c.settings.leaderboard) cloudPublishSoon(); });
   });
 }
 // Student: load a class (and its question sets) that lives in the cloud
@@ -1389,7 +1598,7 @@ function applyRemoteClass(d) {
   let c = classes.find(x => x.id === d.id);
   if (c && !c.remote) return c;           // this device is the teacher's own — keep its copy
   if (!c) { c = { students: [], opened: Date.now() }; classes.push(c); }
-  Object.assign(c, { id: d.id, name: d.name, code: d.code, created: d.created, settings: d.settings || {}, posts: d.posts || [], shared: d.shared || [], assignments: d.assignments || [], teacher: d.teacher || null, remote: true });
+  Object.assign(c, { id: d.id, name: d.name, code: d.code, created: d.created, settings: d.settings || {}, posts: d.posts || [], shared: d.shared || [], assignments: d.assignments || [], teacher: d.teacher || null, leaderboard: d.leaderboard || [], remote: true });
   const ids = new Set((d.qsets || []).map(q => q.id));
   qsets = qsets.filter(q => q._remote !== d.code || ids.has(q.id));
   (d.qsets || []).forEach(q => { const i = qsets.findIndex(x => x.id === q.id); const nq = { ...q, _remote: d.code }; if (i < 0) qsets.push(nq); else if (qsets[i]._remote) qsets[i] = nq; });
@@ -1397,7 +1606,7 @@ function applyRemoteClass(d) {
 }
 // Small status badge (bottom-left) so problems are visible, e.g. on an iPad with no console
 (function () {
-  const b = document.createElement('div');
+  const b = document.createElement('div'); b.id = 'cloudBadge';
   b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:600 11px Poppins,sans-serif;padding:4px 10px;border-radius:20px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);max-width:70vw';
   const paint = () => {
     const m = { ok: ['#1a8a3c', '☁️ Cloud connected'], connecting: ['#b8860b', '☁️ Connecting…'], error: ['#DB504A', '☁️ Cloud error: ' + Cloud.lastError], offline: ['#777', '☁️ Cloud offline'] }[Cloud.status] || ['#777', '☁️ ?'];
@@ -1406,12 +1615,19 @@ function applyRemoteClass(d) {
   window.addEventListener('cloudstatus', paint); paint();
   document.body.appendChild(b);
 })();
-function cloudWatchStudent() {            // keep a student's posts / assignments / question sets live
-  if (!studentSession) return;
-  const c = classes.find(x => x.id === studentSession.classId);
-  if (!c || !c.remote || studentWatchCode === c.code) return;
-  studentWatchCode = c.code;
-  Cloud.watchClass(c.code, d => { if (!d) return; applyRemoteClass(d); if (uiMode === 'student' && studentSession) renderStudentClass(); });
+const studentWatched = new Set();
+function cloudWatchStudent() {            // keep every joined class's posts / assignments / sets / leaderboard live
+  joinedIds.forEach(id => {
+    const c = classes.find(x => x.id === id);
+    if (!c || !c.remote || studentWatched.has(c.code)) return;
+    studentWatched.add(c.code);
+    Cloud.watchClass(c.code, d => {
+      if (!d) return; applyRemoteClass(d);
+      if (uiMode !== 'student') return;
+      renderStudentTabs();
+      if (studentSession && studentSession.classId === d.id && !studentJoinOpen) renderStudentClass();
+    });
+  });
 }
 
 loadRemote();
