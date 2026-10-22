@@ -485,7 +485,12 @@ main{padding:28px 24px;color:var(--dark)}
 .lb-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--grey)}
 .lb-row:last-child{border-bottom:none}
 .lb-row.me{background:var(--light-blue);border-radius:8px;padding-left:10px}
-.lb-rank{width:36px;text-align:center;font-weight:700;font-size:18px;color:var(--dark-grey)}
+.lb-rank{width:34px;height:34px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--dark-grey);background:var(--grey)}
+.lb-rank.r1{background:#f5c84c;color:#5a4100;box-shadow:0 0 0 3px #fbe7a8}
+.lb-rank.r2{background:#cfd6de;color:#3c4652;box-shadow:0 0 0 3px #e7ebef}
+.lb-rank.r3{background:#e0a473;color:#5a2f10;box-shadow:0 0 0 3px #f2d2b6}
+.teacher-pill{display:inline-flex;align-items:center;gap:6px;color:var(--dark);vertical-align:middle;background:var(--light);border:1px solid #ddd;border-radius:20px;padding:3px 10px 3px 3px;font-size:13px;font-weight:600;margin-right:6px}
+.teacher-pill img,.teacher-pill .bx{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:14px}
 .lb-name{flex:1;font-weight:600}
 .lb-name small{color:var(--blue);font-weight:600}
 .lb-score{text-align:right}

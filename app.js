@@ -60,7 +60,12 @@ let railOpen = true, classes = [], activeId = null, tab = 'activity', memStore =
 try { railOpen = localStorage.getItem('adminhub_rail_open') !== '0'; } catch (e) {}
 try { ownOpen = localStorage.getItem('adminhub_owned_open') !== '0'; } catch (e) {}
 function load() { try { const r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch (e) {} return memStore || []; }
-function save() { memStore = classes; try { localStorage.setItem(KEY, JSON.stringify(classes.filter(c => !c.remote))); } catch (e) {} saveRemote(); cloudPublishSoon(); }
+function stampTeacher() {               // the teacher's name + photo live on each of their classes
+  if (uiMode !== 'teacher' || !Cloud.profile) return;
+  const t = { name: Cloud.profile.displayName || 'Teacher', photo: Cloud.profile.photo || '' };
+  classes.forEach(c => { if (!c.remote) c.teacher = t; });
+}
+function save() { stampTeacher(); memStore = classes; try { localStorage.setItem(KEY, JSON.stringify(classes.filter(c => !c.remote))); } catch (e) {} saveRemote(); cloudPublishSoon(); }
 classes = load();
 if (classes.length) activeId = classes[0].id;
 
@@ -73,13 +78,13 @@ function scoresMap(classId) {            // { studentId: [scores, newest first] 
     if (Array.isArray(cm)) cm.forEach(e => add('__legacy', e));
     else if (cm) Object.keys(cm).forEach(sid => (cm[sid] || []).forEach(e => add(sid, e)));
   } catch (e) {}
-  (cloudScores[classId] || []).forEach(d => add(d.sid, { game: d.game, quizId: d.quizId, won: d.won, score: d.score, answers: d.answers || [], time: d.time }));
+  (cloudScores[classId] || []).forEach(d => add(d.sid, { game: d.game, quizId: d.quizId, won: d.won, quit: !!d.quit, score: d.score, answers: d.answers || [], time: d.time }));
   Object.values(out).forEach(l => l.sort((x, y) => y.time - x.time));
   return out;
 }
 function getStudentScores(classId, studentId) { return scoresMap(classId)[studentId] || []; }
 function getAllClassScores(classId) { return [].concat(...Object.values(scoresMap(classId))); }
-function recordScore(classId, game, quizId, won, score, answers) {
+function recordScore(classId, game, quizId, won, score, answers, quit) {
   const now = Date.now();
   try {
     const all = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
@@ -87,13 +92,13 @@ function recordScore(classId, game, quizId, won, score, answers) {
     if (!cm || Array.isArray(cm)) cm = { __legacy: Array.isArray(cm) ? cm : [] };
     const sid = (studentIdentity && studentIdentity.id) || '__anon';
     if (!cm[sid]) cm[sid] = [];
-    cm[sid].unshift({ game, quizId: quizId || 'preset', won: !!won, score: Number(score) || 0, answers: Array.isArray(answers) ? answers : [], time: now });
+    cm[sid].unshift({ game, quizId: quizId || 'preset', won: !!won, quit: !!quit, score: Number(score) || 0, answers: Array.isArray(answers) ? answers : [], time: now });
     if (cm[sid].length > 200) cm[sid] = cm[sid].slice(0, 200);
     all[classId] = cm;
     localStorage.setItem(SCORE_KEY, JSON.stringify(all));
   } catch (e) {}
   const cc = classes.find(x => x.id === classId);
-  if (cc) Cloud.submitScore(cc.code, { sid: (studentIdentity && studentIdentity.id) || '__anon', name: (studentIdentity && studentIdentity.name) || '', game: game || 'unknown', quizId: quizId || 'preset', won: !!won, score: Number(score) || 0, answers: Array.isArray(answers) ? answers : [], time: now }).catch(e => console.warn('Score upload failed', e));
+  if (cc) Cloud.submitScore(cc.code, { sid: (studentIdentity && studentIdentity.id) || '__anon', name: (studentIdentity && studentIdentity.name) || '', game: game || 'unknown', quizId: quizId || 'preset', won: !!won, quit: !!quit, score: Number(score) || 0, answers: Array.isArray(answers) ? answers : [], time: now }).catch(e => console.warn('Score upload failed', e));
   if (uiMode === 'student' && studentSession && studentSession.classId === classId && studentTab === 'scores') renderStudentClass();
 }
 
@@ -201,7 +206,7 @@ function listHtml(items, key, empty, opts = {}) {
     let extra = '';
     if (i.kind === 'quiz' && i.quizId) {
       extra = `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        ${gameBtns('data-play-quiz', i.quizId)}
+        ${assignPlayBtn(i)}
         ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
       </div>`;
     }
@@ -525,7 +530,7 @@ function openProfile() {
     try {
       if (role !== oldRole) { await Cloud.saveProfile({ displayName: name, photo, role }); toast('Switching to ' + role + '…'); setTimeout(() => location.reload(), 500); return; }
       await Cloud.saveProfile({ displayName: name, photo });
-      studentIdentity.name = name; saveStudentIdentity(); paintAvatar(); cloudPublishSoon(); if (uiMode === 'teacher') render(); closeModal(); toast('Profile saved');
+      studentIdentity.name = name; saveStudentIdentity(); paintAvatar(); save(); if (uiMode === 'teacher') render(); closeModal(); toast('Profile saved');
     } catch (er) { toast('Could not save: ' + (er.code || er.message)); }
   };
 }
@@ -669,9 +674,13 @@ function leaveStudentClass() {
 }
 document.getElementById('studentLeaveBtn').addEventListener('click', e => { e.preventDefault(); leaveStudentClass(); });
 
+let gameRun = null;        // the game that's open: {game, quizId, answers answered since its last finished round}
 window.addEventListener('message', e => {
   const d = e.data;
-  if (!d || typeof d !== 'object' || d.type !== 'gameEnd') return;
+  if (!d || typeof d !== 'object' || !gameRun || e.source !== $('#battleFrame').contentWindow) return;
+  if (d.type === 'quizAnswer') { gameRun.answers.push({ qIdx: d.qIdx, correct: !!d.correct }); return; }
+  if (d.type !== 'gameEnd') return;
+  gameRun.answers = [];     // this round gets saved in full just below
   if (uiMode !== 'student' || !studentSession) return;
   recordScore(studentSession.classId, d.game || 'unknown', d.quizId || 'preset', !!d.won, d.score, d.answers || []);
 });
@@ -688,6 +697,14 @@ function renderStudentTabs() {
     if (b.dataset.classTab === '__join') studentJoinOpen = true; else { openStudentClass(b.dataset.classTab); cloudWatchStudent(); }
     route();
   }; });
+}
+
+function finishGameRun() { // closing a game before the end still saves the questions answered so far
+  const r = gameRun; gameRun = null;
+  if (!r || !r.answers.length || uiMode !== 'student' || !studentSession) return;
+  recordScore(studentSession.classId, r.game, r.quizId, false, 0, r.answers, true);
+  toast('Saved ' + r.answers.length + ' answer' + (r.answers.length === 1 ? '' : 's') + ' from that game');
+  if (studentTab === 'scores' || studentTab === 'leaderboard') renderStudentClass();
 }
 
 function renderStudentClass() {
@@ -724,7 +741,7 @@ function renderStudentClass() {
     <div class="student-class-hd">
       <div>
         <h1>${esc(c.name)}</h1>
-        <div class="cls-meta"><span class="student-name-pill"><i class='bx bxs-user'></i> ${esc(studentIdentity.name || 'Student')}</span> &nbsp; <span class="student-badge"><i class='bx bxs-graduation'></i> Class code ${esc(c.code)}</span></div>
+        <div class="cls-meta"><span class="teacher-pill">${teacherOf(c).photo ? `<img src="${esc(teacherOf(c).photo)}" alt="">` : "<i class='bx bxs-user'></i>"}Teacher: ${esc(teacherOf(c).name)}</span> <span class="student-name-pill"><i class='bx bxs-user'></i> ${esc(studentIdentity.name || 'Student')}</span> <span class="student-badge"><i class='bx bxs-graduation'></i> Class code ${esc(c.code)}</span></div>
       </div>
       <button class="leave-link" id="leaveClassBtn"><i class='bx bx-log-out'></i> Leave class</button>
     </div>
@@ -750,8 +767,8 @@ function renderStudentLeaderboard(c) {
   let rank = 0, prev = null;
   body.innerHTML = `<div class="card lb">${rows.map((r, i) => {
       if (r.correct !== prev) { rank = i + 1; prev = r.correct; }
-      const place = rank <= 3 && r.correct > 0 ? ['🥇', '🥈', '🥉'][rank - 1] : rank;
-      return `<div class="lb-row ${r.sid === me ? 'me' : ''}"><div class="lb-rank">${place}</div><div class="lb-name">${esc(r.name)}${r.sid === me ? ' <small>(you)</small>' : ''}</div><div class="lb-score"><b>${r.correct}</b><small>correct</small></div></div>`;
+      const podium = rank <= 3 && r.correct > 0 ? ' r' + rank : '';   // gold / silver / bronze badge
+      return `<div class="lb-row ${r.sid === me ? 'me' : ''}"><div class="lb-rank${podium}">${rank}</div><div class="lb-name">${esc(r.name)}${r.sid === me ? ' <small>(you)</small>' : ''}</div><div class="lb-score"><b>${r.correct}</b><small>correct</small></div></div>`;
     }).join('')}</div>
     <p class="lb-note">Ranked by correct answers across every game. It updates whenever your teacher has ClassQuiz open.</p>`;
 }
@@ -774,7 +791,7 @@ function renderStudentHome(c, scores) {
       <div class="shline">
         <div class="shl-icon"><i class='bx bxs-task'></i></div>
         <div class="shl-info"><b>${esc(nextAssign.text)}</b><small>${fmt(nextAssign.time)}${nextAssign.kind === 'quiz' ? ' · quiz' : ''}</small></div>
-        ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions"><button class="playbtn browse" data-browse="${nextAssign.quizId}"><i class='bx bxs-joystick'></i> Play</button></div>` : ''}
+        ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions">${assignPlayBtn(nextAssign)}</div>` : ''}
       </div>
       <button class="seeall" data-student-tab-link="assignments">See all assignments</button>
     </div>`;
@@ -825,7 +842,7 @@ function renderStudentAssignments(c) {
     <div class="meta">${tAv(teacherOf(c), 'bxs-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
     <p>${esc(a.text)}</p>
     ${a.kind === 'quiz' && a.quizId ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      ${gameBtns('data-student-play', a.quizId)}
+      ${assignPlayBtn(a)}
     </div>` : ''}
   </div>`).join('')}</div>`;
   wireStudentBodyHandlers();
@@ -861,8 +878,8 @@ function renderStudentScores(c, scores) {
     </div>
     <div class="card" style="padding:0 20px">
       ${scores.map(s => `<div class="score-row">
-        <div class="sr-badge ${s.won ? 'win' : 'lose'}"><i class='bx ${s.won ? 'bxs-check' : 'bx-x'}'></i></div>
-        <div class="sr-info"><b>${esc(gameNames[s.game] || s.game)}</b><small>${s.won ? 'Won' : 'Lost'} · ${fmt(s.time)}</small></div>
+        <div class="sr-badge ${s.won ? 'win' : 'lose'}"><i class='bx ${s.won ? 'bxs-check' : s.quit ? 'bx-exit' : 'bx-x'}'></i></div>
+        <div class="sr-info"><b>${esc(gameNames[s.game] || s.game)}</b><small>${s.won ? 'Won' : s.quit ? 'Left early' : 'Lost'} · ${(s.answers || []).filter(a => a.correct).length}/${(s.answers || []).length} correct · ${fmt(s.time)}</small></div>
         <div class="sr-score">${s.score || 0}</div>
       </div>`).join('')}
     </div>`;
@@ -1016,14 +1033,27 @@ function assignQuiz(qsId) {
   $('#assignList').addEventListener('click', e => {
     const b = e.target.closest('[data-cid]'); if (!b) return;
     const c = classes.find(x => x.id === b.dataset.cid); if (!c) return;
-    addAssignmentForClass(c, qs); closeModal();
-    toast('Assigned to ' + c.name);
-    if (cur() && cur().id === c.id) { tab = 'assignments'; render(); }
-    renderQuestionSets();
+    chooseAssignGame(qs, game => {
+      addAssignmentForClass(c, qs, game);
+      toast('Assigned to ' + c.name);
+      if (cur() && cur().id === c.id) { tab = 'assignments'; render(); }
+      renderQuestionSets();
+    });
   });
 }
-function addAssignmentForClass(c, qs) {
-  c.assignments.unshift({ id: Date.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)', time: Date.now(), kind: 'quiz', quizId: qs.id });
+// Step 2 of assigning: which game? (null = students pick from all games)
+function chooseAssignGame(qs, done) {
+  const hasClues = qs.questions.some(q => q.hangmanAnswer);
+  openModal(`<h3>Which game?</h3><p class="sub">Students play "${esc(qs.title)}" in this game.</p>
+    <div class="gpick"><button class="gcard" data-ag=""><span class="gic" style="background:#1fa971"><i class='bx bxs-joystick'></i></span><b>Students pick</b><small>Any game they like</small></button>
+    ${GAMES.map(g => { const off = g.id === 'hangman' && !hasClues;
+      return `<button class="gcard" data-ag="${g.id}" ${off ? 'disabled style="opacity:.45"' : ''}><span class="gic" style="background:${g.color}"><i class='bx ${g.icon}'></i></span><b>${g.name}</b><small>${off ? 'No Hangman clues in this set' : (GAME_DESC[g.id] || '')}</small></button>`; }).join('')}</div>
+    <div class="foot"><button class="btn ghost" data-x>Cancel</button></div>`);
+  $('#modal [data-x]').onclick = closeModal;
+  $('#modal').querySelectorAll('[data-ag]').forEach(b => b.onclick = () => { if (b.disabled) return; closeModal(); done(b.dataset.ag || null); });
+}
+function addAssignmentForClass(c, qs, game) {
+  c.assignments.unshift({ id: Date.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)' + (game ? ' · ' + gameName(game) : ''), time: Date.now(), kind: 'quiz', quizId: qs.id, game: game || null });
   c.setupDone = true;
   qs.assignedTo = qs.assignedTo || [];
   if (!qs.assignedTo.includes(c.id)) qs.assignedTo.push(c.id);
@@ -1039,7 +1069,7 @@ function pickAndAssignQuiz() {
   $('#qsPick').addEventListener('click', e => {
     const b = e.target.closest('[data-qsid]'); if (!b) return;
     const qs = qsets.find(x => x.id === b.dataset.qsid); if (!qs) return;
-    addAssignmentForClass(c, qs); closeModal(); toast('Assigned "' + qs.title + '"'); render();
+    chooseAssignGame(qs, game => { addAssignmentForClass(c, qs, game); toast('Assigned "' + qs.title + '"'); render(); });
   });
 }
 
@@ -1319,6 +1349,11 @@ function openGamePicker(quizId) {
   $('#modal').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { closeModal(); openGame(b.dataset.g, qsets.find(x => x.id === quizId) || null); });
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-browse]'); if (b) openGamePicker(b.dataset.browse); });
+// An assignment can name its game; otherwise students pick one.
+const assignPlayBtn = a => a.game && GAMES.some(g => g.id === a.game)
+  ? `<button class="playbtn browse" data-play-game="${a.game}" data-quiz="${esc(a.quizId)}"><i class='bx bxs-joystick'></i> Play ${esc(gameName(a.game))}</button>`
+  : gameBtns('', a.quizId);
+document.addEventListener('click', e => { const b = e.target.closest('[data-play-game]'); if (b) openGame(b.dataset.playGame, qsets.find(x => x.id === b.dataset.quiz) || null); });
 
 function openGame(type, qs) {
   const frame = $('#battleFrame');
@@ -1327,11 +1362,12 @@ function openGame(type, qs) {
     // hand the questions to the game once its page has loaded
     frame.contentWindow.postMessage({ type: 'loadQuiz', questions: qs_.questions, quizId: qs_.id }, '*');
   };
+  gameRun = { game: type, quizId: qs_.id, answers: [] };
   frame.src = (GAMES.find(g => g.id === type) || GAMES[0]).file;
   $('#battleWrap').classList.add('show');
   document.body.style.overflow = 'hidden';
 }
-$('#battleClose').onclick = () => { $('#battleWrap').classList.remove('show'); $('#battleFrame').onload = null; $('#battleFrame').src = 'about:blank'; document.body.style.overflow = ''; };
+$('#battleClose').onclick = () => { finishGameRun(); $('#battleWrap').classList.remove('show'); $('#battleFrame').onload = null; $('#battleFrame').src = 'about:blank'; document.body.style.overflow = ''; };
 
 
 /* ===================== AI / Auth (unchanged) ===================== */
@@ -1631,6 +1667,7 @@ function cloudWatchStudent() {            // keep every joined class's posts / a
 }
 
 loadRemote();
+if (uiMode === 'teacher' && classes.some(c => !c.remote)) save();      // puts the teacher's name + photo on their classes
 document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('on', b.dataset.mode === uiMode));
 render();
 route();

@@ -174,6 +174,7 @@
     if (ok) { solved++; $('word').classList.add('won'); $('msg').innerHTML = '<span style="color:#4ade80">✓ Solved!</span>'; }
     else { drawWord(true); $('msg').innerHTML = '<span style="color:#f87171">Out of guesses — the answer was shown above.</span>'; }
     answers.push({ qIdx: rounds[r].qIdx, correct: ok });
+    try { window.parent.postMessage({ type: 'quizAnswer', quizId: QUIZ_ID, qIdx: rounds[r].qIdx, correct: ok }, '*'); } catch (e) {}   // counts even if they close early
     $('sol').textContent = solved;
     document.querySelectorAll('.k').forEach(function (b) { b.disabled = true; });
     $('nextBtn').textContent = r + 1 < rounds.length ? 'Next word' : 'See results';

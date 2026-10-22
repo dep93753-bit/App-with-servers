@@ -1,4 +1,4 @@
-/* quiz-modal.js — shared by Battleship, Bubble Shooter and Asteroids.
+/* quiz-modal.js — the question popup shared by every game (Hangman uses only the question loading).
    1) Receives the questions from the app (postMessage {type:'loadQuiz', questions, quizId}).
    2) Injects the popup's CSS.
    3) Provides makeQuizModal(): the "out of ammo — answer a question" popup. */
@@ -42,6 +42,8 @@ function makeQuizModal(opts) {
         Array.prototype.forEach.call(optsEl.children, function(x) { x.disabled = true; });
         var gain = ok ? opts.gainCorrect : opts.gainWrong; opts.setAmmo(opts.getAmmo() + gain); opts.onUpdate();
         if (typeof opts.onAnswer === 'function') opts.onAnswer(qIdx, ok);
+        // tell the app right away, so answers still count if the player closes the game early
+        try { window.parent.postMessage({ type: 'quizAnswer', quizId: QUIZ_ID, qIdx: qIdx, correct: ok }, '*'); } catch (e) {}
         document.getElementById('qFeedback').innerHTML = (ok ? '<b style="color:#7dd87d">✓ Correct!</b> ' : '<b style="color:#ff8a8a">✗ Nope.</b> ') + '<b style="color:#f0c14b">+' + gain + ' ammo</b>' + (q.explanation ? ' <span style="opacity:.8">· ' + escHtml(q.explanation) + '</span>' : '');
         var nw = document.getElementById('qNextWrap');
         var nb = document.createElement('button'); nb.type = 'button'; nb.className = 'btn'; nb.textContent = 'Continue';
