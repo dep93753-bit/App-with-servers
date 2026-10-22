@@ -133,7 +133,7 @@ main{padding:28px 24px;color:var(--dark)}
 @media(max-width:900px){.sumrow{grid-template-columns:1fr}}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5000;padding:16px}
 .scrim.show{display:flex}
-.modal{background:var(--light);color:var(--dark);border-radius:14px;padding:28px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto}
+.modal{background:var(--light);color:var(--dark);border-radius:14px;padding:28px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain}
 .modal h3{font-size:22px;margin-bottom:6px}
 .modal .sub{color:var(--dark-grey);font-size:14px;margin-bottom:18px}
 .modal input[type=text]{width:100%;padding:12px 14px;border:1px solid #ccc;border-radius:6px;font:inherit;background:transparent;color:var(--dark);margin-bottom:18px}
@@ -303,7 +303,7 @@ main{padding:28px 24px;color:var(--dark)}
 #authGate form{background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:0 44px;height:100%;text-align:center}
 #authGate input[type=text],#authGate input[type=email],#authGate input[type=password]{background:#eee;border:none;padding:12px 15px;margin:8px 0;width:100%;font-family:inherit;font-size:15px;border-radius:6px;color:#342E37}
 .ag-box{background:#fff;border-radius:12px;box-shadow:0 14px 28px rgba(0,0,0,.2),0 10px 10px rgba(0,0,0,.18);position:relative;overflow:hidden;width:768px;max-width:100%;min-height:500px}
-.ag-form{position:absolute;top:0;height:100%;transition:all .6s ease-in-out;left:0;width:50%}
+.ag-form{position:absolute;top:0;height:100%;transition:transform .6s ease-in-out,opacity .6s ease-in-out;left:0;width:50%}
 .ag-in{z-index:2}
 .ag-box.right-panel-active .ag-in{transform:translateX(100%)}
 .ag-up{opacity:0;z-index:1}
@@ -373,7 +373,7 @@ main{padding:28px 24px;color:var(--dark)}
 .qe-meta .qe-tabswitch{display:flex;gap:4px;background:var(--grey);border-radius:8px;padding:3px}
 .qe-meta .qe-tabswitch button{border:none;background:transparent;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;color:var(--dark-grey);cursor:pointer;font-family:inherit}
 .qe-meta .qe-tabswitch button.on{background:#fff;color:var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.qe-body{flex:1;overflow-y:auto;padding:24px;background:#f7f8fa}
+.qe-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:24px;background:#f7f8fa}
 .qe-body[hidden]{display:none}
 
 /* List of questions (edit mode) */
@@ -447,7 +447,7 @@ main{padding:28px 24px;color:var(--dark)}
 #content nav .nav-brand{display:none;color:var(--blue);font-size:20px;font-weight:700}
 #classView{min-width:0}
 #content nav .notification{min-width:22px;min-height:22px;display:flex;align-items:center;justify-content:center}
-#content nav .dd{width:300px;max-height:60vh;overflow-y:auto}
+#content nav .dd{width:300px;max-height:60vh;overflow-y:auto;overscroll-behavior:contain}
 #content nav .dd li{font-size:14px}
 #content nav .dd li small{display:block;color:var(--dark-grey);font-size:12px;margin-top:2px}
 #content nav .dd li.none{color:var(--dark-grey)}
@@ -508,7 +508,7 @@ main{padding:28px 24px;color:var(--dark)}
 @media(max-width:700px){
   #sidebar{display:none}
   #content,#sidebar.hide~#content{width:100%;left:0}
-  #content nav .bx-menu,#content nav::before{display:none}
+  #content nav .menu-btn,#content nav::before{display:none}
   main{padding:18px 14px 92px}
   .classes .rail,.classes .railopen{display:none!important}
   .classes,.classes.railclosed{grid-template-columns:minmax(0,1fr)}
@@ -545,9 +545,9 @@ main{padding:28px 24px;color:var(--dark)}
 .pt-code span:empty{border-color:var(--blue)}
 
 /* ===== guided tour ===== */
-#tour .tr-shade{position:fixed;background:rgba(15,20,35,.62);z-index:3000;transition:all .25s}
+#tour .tr-shade{position:fixed;background:rgba(15,20,35,.62);z-index:3000;transition:top .25s,left .25s,width .25s,height .25s}
 #tour .tr-block{position:fixed;z-index:3001}
-#tour .tr-ring{position:fixed;z-index:3001;border-radius:12px;box-shadow:0 0 0 3px #fff,0 0 0 7px var(--blue);pointer-events:none;transition:all .25s}
+#tour .tr-ring{position:fixed;z-index:3001;border-radius:12px;box-shadow:0 0 0 3px #fff,0 0 0 7px var(--blue);pointer-events:none;transition:top .25s,left .25s,width .25s,height .25s}
 #tour .tr-tip{position:fixed;z-index:3002;background:var(--light);color:var(--dark);border-radius:14px;padding:16px 18px;box-shadow:0 14px 40px rgba(0,0,0,.35);transition:top .25s,left .25s}
 .tr-tip small{color:var(--blue);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 .tr-tip h4{font-size:18px;margin:4px 0 6px}
@@ -576,3 +576,17 @@ body.touring #cloudBadge{display:none}
 .qe-hang{border-top:1px dashed #ddd;padding-top:10px}
 .qe-hang input{width:100%}
 .hm-add{padding:7px 14px;font-size:14px}
+
+/* ===== accessibility & touch (web interface guidelines) ===== */
+.menu-btn{background:none;border:none;padding:4px;margin:0;color:var(--dark);cursor:pointer;display:flex;align-items:center;border-radius:8px}
+/* keyboard users see where they are; mouse and touch taps don't get a ring */
+button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.qe-opt:focus-within{box-shadow:0 0 0 2px var(--blue)}
+#content nav .form-input input:focus-visible{box-shadow:inset 0 0 0 2px var(--blue)}
+/* no double-tap zoom delay on buttons; a soft blue flash when tapped */
+a,button,input,select,textarea,label,summary,[data-view]{touch-action:manipulation}
+html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
+/* people who turn off animations on their device get (almost) none here */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}

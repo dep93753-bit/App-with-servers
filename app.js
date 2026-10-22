@@ -240,7 +240,7 @@ function listHtml(items, key, empty, opts = {}) {
     if (i.kind === 'quiz' && i.quizId) {
       extra = `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${assignPlayBtn(i)}
-        ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
+        ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" aria-label="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
       </div>`;
     }
     const c = cur(), roster = (c.students || []).filter(s => !isRemoved(c, s.id));
@@ -334,8 +334,8 @@ function showRoster() {
             <div class="roster-name">${esc(r.name)}${r.name !== r.s.name ? ` <small>(signed up as ${esc(r.s.name)})</small>` : ''}</div>
             <div class="roster-meta">${r.games} game${r.games === 1 ? '' : 's'} · ${r.mastery}% correct${r.s.joinedAt ? " · joined " + fmt(r.s.joinedAt) : ""}</div>
           </div>
-          <button class="iconbtn-sm" data-rn="${esc(r.s.id)}" title="Rename"><i class='bx bx-edit'></i></button>
-          <button class="iconbtn-sm danger" data-rm="${esc(r.s.id)}" title="Remove from class"><i class='bx bx-user-x'></i></button>
+          <button class="iconbtn-sm" data-rn="${esc(r.s.id)}" title="Rename" aria-label="Rename"><i class='bx bx-edit'></i></button>
+          <button class="iconbtn-sm danger" data-rm="${esc(r.s.id)}" title="Remove from class" aria-label="Remove from class"><i class='bx bx-user-x'></i></button>
         </div>`).join('')}
     </div>
     <div class="foot"><button class="btn ghost" data-x>Close</button></div>`);
@@ -522,7 +522,7 @@ $('#classView').addEventListener('keydown', e => { if (e.target.id === 'postBox'
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (tour && !document.querySelector('.scrim.show')) return endTour(); closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
 
 const sidebar = $('#sidebar');
-$('#content nav .bx-menu').onclick = () => sidebar.classList.toggle('hide');
+$('#menuBtn').onclick = () => sidebar.classList.toggle('hide');
 function adjust() { sidebar.classList.toggle('hide', window.innerWidth <= 576); }
 addEventListener('load', adjust); addEventListener('resize', adjust);
 const NKEY = 'adminhub_notif_seen_v1';
@@ -1078,10 +1078,10 @@ function renderQuestionSets() {
       <div class="top">
         <div class="info"><b>${esc(qs.title)}</b><small>${qs.questions.length} questions · ${fmt(qs.created)}${qs.assignedTo ? ' · assigned to ' + qs.assignedTo.length : ''}${practiceOn ? '' : ' · practice hidden'}</small></div>
         <div class="acts">
-          <button class="iconbtn-sm ${practiceOn ? '' : 'hidden-practice'}" data-toggle-practice="${qs.id}" title="${practiceOn ? 'Hide from student practice' : 'Show in student practice'}"><i class='bx ${practiceOn ? 'bxs-show' : 'bx-hide'}'></i></button>
-          <button class="iconbtn-sm" data-assign="${qs.id}" title="Assign to a class"><i class='bx bx-task'></i></button>
-          <button class="iconbtn-sm" data-edit="${qs.id}" title="Edit questions"><i class='bx bx-edit'></i></button>
-          <button class="iconbtn-sm danger" data-delqs="${qs.id}" title="Delete set"><i class='bx bx-trash'></i></button>
+          <button class="iconbtn-sm ${practiceOn ? '' : 'hidden-practice'}" data-toggle-practice="${qs.id}" title="${practiceOn ? 'Hide from student practice' : 'Show in student practice'}" aria-label="${practiceOn ? 'Hide from student practice' : 'Show in student practice'}"><i class='bx ${practiceOn ? 'bxs-show' : 'bx-hide'}'></i></button>
+          <button class="iconbtn-sm" data-assign="${qs.id}" title="Assign to a class" aria-label="Assign to a class"><i class='bx bx-task'></i></button>
+          <button class="iconbtn-sm" data-edit="${qs.id}" title="Edit questions" aria-label="Edit questions"><i class='bx bx-edit'></i></button>
+          <button class="iconbtn-sm danger" data-delqs="${qs.id}" title="Delete set" aria-label="Delete set"><i class='bx bx-trash'></i></button>
         </div>
       </div>
       <div class="playrow">
@@ -1273,7 +1273,7 @@ function qeQCardHtml(q, qi) {
         <button class="del" data-delq="${qi}" title="Delete question"><i class='bx bx-trash'></i></button>
       </div>
     </div>
-    <textarea class="qe-qinput" data-field="question" rows="2" placeholder="Type the question...">${esc(q.question)}</textarea>
+    <textarea class="qe-qinput" data-field="question" rows="2" placeholder="Type the question…">${esc(q.question)}</textarea>
     <div class="qe-opts">
       ${q.options.map((o, oi) => `<div class="qe-opt ${OPT_SHAPES[oi]} ${q.correct === oi ? 'is-correct' : ''}" data-opt="${oi}">
         <div class="qe-mark"><i class='bx ${q.correct === oi ? 'bxs-check-circle' : 'bx-circle'}'></i></div>
