@@ -168,48 +168,7 @@ body:not(.pc) .kb-hint{display:none}
   </div>
 </div>
 
-<script>
-/* ============ QUIZ MODAL (inline, from quiz-modal.js) — UNCHANGED ENGINE ============ */
-var QUESTIONS=[];
-var QUIZ_ID='preset';
-window.addEventListener('message',function(e){
-  if(e.source!==window.parent)return;
-  var d=e.data;if(!d||d.type!=='loadQuiz')return;
-  QUESTIONS=Array.isArray(d.questions)?d.questions:[];QUIZ_ID=d.quizId||'preset';
-});
-function escHtml(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function makeQuizModal(opts){
-  var SHAPES=['<svg viewBox="0 0 24 24"><polygon points="12,2 22,20 2,20" fill="#fff"/></svg>','<svg viewBox="0 0 24 24"><polygon points="12,2 22,12 12,22 2,12" fill="#fff"/></svg>','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/></svg>','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" fill="#fff"/></svg>'];
-  return function openQuiz(onDone){
-    if(opts.isOpen())return;
-    if(!QUESTIONS||!QUESTIONS.length){opts.setAmmo(opts.getAmmo()+opts.gainCorrect);opts.onUpdate();if(typeof onDone==='function')onDone();return;}
-    opts.setOpen(true);
-    var idx=opts.getIdx(),q=QUESTIONS[idx%QUESTIONS.length],qIdx=idx%QUESTIONS.length;opts.setIdx(idx+1);
-    var ov=document.createElement('div');ov.className='quiz-overlay';ov.id='quizOverlay';
-    var box=document.createElement('div');box.className='quiz-box';
-    var letters=['A','B','C','D'],optHtml='';
-    for(var i=0;i<4;i++)optHtml+='<button type="button" class="opt" data-opt="'+i+'"><span class="shape">'+SHAPES[i]+'</span><span class="opttext">'+letters[i]+'. '+escHtml(q.options[i]||'')+'</span></button>';
-    box.innerHTML='<h3>Out of ammo — reload!</h3><p class="sub">Correct = <b>+'+opts.gainCorrect+'</b> ammo &nbsp;·&nbsp; Wrong = +'+opts.gainWrong+'</p><div class="qtext">'+escHtml(q.question)+'</div><div class="opts">'+optHtml+'</div><div class="quiz-foot"><span id="qFeedback"></span><span id="qNextWrap"></span></div>';
-    var optsEl=box.querySelector('.opts');
-    Array.prototype.forEach.call(optsEl.children,function(b,i){
-      b.addEventListener('click',function(){
-        if(b.disabled)return;
-        var correct=q.correct,ok=i===correct;
-        if(ok)b.classList.add('correct');else{b.classList.add('wrong');optsEl.children[correct].classList.add('correct');}
-        Array.prototype.forEach.call(optsEl.children,function(x){x.disabled=true;});
-        var gain=ok?opts.gainCorrect:opts.gainWrong;opts.setAmmo(opts.getAmmo()+gain);opts.onUpdate();
-        if(typeof opts.onAnswer==='function')opts.onAnswer(qIdx,ok);
-        document.getElementById('qFeedback').innerHTML=(ok?'<b style="color:#7dd87d">Correct!</b> ':'<b style="color:#ff8a8a">Nope.</b> ')+'<b style="color:#f0c14b">+'+gain+' ammo</b>'+(q.explanation?' <span style="opacity:.8">· '+escHtml(q.explanation)+'</span>':'');
-        var nw=document.getElementById('qNextWrap');
-        var nb=document.createElement('button');nb.type='button';nb.className='btn';nb.textContent='Continue';
-        nb.addEventListener('click',function(){ov.remove();opts.setOpen(false);if(typeof onDone==='function')onDone();});
-        nw.appendChild(nb);
-      });
-    });
-    ov.appendChild(box);document.body.appendChild(ov);
-  };
-}
-</script>
+<script src="quiz-modal.js"></script>
 
 <script>
 (function(){
