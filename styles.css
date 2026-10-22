@@ -558,3 +558,21 @@ main{padding:28px 24px;color:var(--dark)}
 .tr-skip{background:none;border:none;color:var(--dark-grey);font-size:13px;font-weight:600;padding:6px 0}
 .tr-wait{display:flex;align-items:center;gap:6px;color:var(--blue);font-size:13px;font-weight:600}
 body.touring #cloudBadge{display:none}
+
+/* ===== student list, due dates, to-do / done, hangman fields ===== */
+.roster-row{padding:12px 0;border-bottom:1px solid var(--grey);display:flex;align-items:center;gap:10px}
+.roster-av{width:40px;height:40px;border-radius:50%;background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none}
+.roster-name{font-size:14px;font-weight:600;color:var(--dark)}
+.roster-name small{font-weight:400;color:var(--dark-grey)}
+.roster-meta{font-size:12px;color:var(--dark-grey)}
+.due-in{width:100%;padding:10px 12px;border:1px solid #ccc;border-radius:6px;font:inherit;margin:4px 0 14px;background:transparent;color:var(--dark)}
+.due{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--light-blue);color:var(--blue);margin-left:4px}
+.due.soon{background:#fff6d6;color:#8a6b00}
+.due.late{background:#fde8e6;color:#8a2721}
+.todo-h{margin:6px 0 10px;font-size:17px}
+.student-post.is-done{opacity:.75}
+.done-tag{margin-left:auto;display:flex;align-items:center;gap:4px;color:#26890c;font-weight:700;font-size:13px}
+.hint-done{color:var(--dark-grey);font-size:12px}
+.qe-hang{border-top:1px dashed #ddd;padding-top:10px}
+.qe-hang input{width:100%}
+.hm-add{padding:7px 14px;font-size:14px}

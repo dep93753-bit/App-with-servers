@@ -1,15 +1,17 @@
 /* ClassQuiz app.js — teacher UI, student UI, AI quiz maker, game launcher.
    Games live in /games/ — see the GAMES list below (and games/_template.html) to add one. */
 
+// Something broke: show a friendly note (details go to the browser console for debugging).
 window.addEventListener('error', function (e) {
-  var el = document.getElementById('__errbar');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = '__errbar';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#DB504A;color:#fff;padding:10px 14px;font:13px ui-monospace,monospace;z-index:999999;white-space:pre-wrap';
-    document.body.appendChild(el);
-  }
-  el.textContent = 'Error: ' + (e.message || 'unknown') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '');
+  console.error('[ClassQuiz]', e.message, e.filename ? e.filename + ':' + e.lineno : '', e.error || '');
+  if (!e.filename || /ResizeObserver|^Script error/.test(e.message || '')) return;   // harmless / outside scripts
+  if (document.getElementById('__errbar')) return;
+  var el = document.createElement('div'); el.id = '__errbar';
+  el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:999999;background:#fff;color:#342E37;border-left:4px solid #DB504A;box-shadow:0 6px 24px rgba(0,0,0,.18);border-radius:10px;padding:10px 12px 10px 14px;font:14px Poppins,sans-serif;display:flex;gap:10px;align-items:center;max-width:92vw';
+  el.innerHTML = '<span>Something went wrong. If things stop working, reload the page.</span><button style="border:none;background:#2F65C8;color:#fff;border-radius:6px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer">Reload</button><button aria-label="Close" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999">&times;</button>';
+  el.children[1].onclick = function () { location.reload(); };
+  el.children[2].onclick = function () { el.remove(); };
+  document.body.appendChild(el);
 });
 
 let nav = 'classes';
@@ -109,10 +111,13 @@ function classMastery(c) {
   return { total, correct, pct: total ? Math.round(correct / total * 100) : 0 };
 }
 
+// A teacher can rename students (c.renames) or remove them (c.removed: sid -> when); everything uses these.
+const studentName = (c, s) => ((c.renames || {})[s.id]) || s.name;
+const isRemoved = (c, sid) => !!(c.removed && c.removed[sid]);
 // Every game result in a class, newest first: {sid, name, game, quizId, time, correct, total, won, answers}
 function classActivity(c) {
-  const names = Object.fromEntries((c.students || []).map(s => [s.id, s.name])), map = scoresMap(c.id), out = [];
-  Object.keys(map).forEach(sid => map[sid].forEach(s => {
+  const names = Object.fromEntries((c.students || []).map(s => [s.id, studentName(c, s)])), map = scoresMap(c.id), out = [];
+  Object.keys(map).forEach(sid => !isRemoved(c, sid) && map[sid].forEach(s => {
     const ans = s.answers || [];
     out.push({ sid, name: names[sid] || (sid === '__legacy' ? 'Earlier player' : 'Student'), game: s.game, quizId: s.quizId, time: s.time,
       correct: ans.filter(a => a.correct).length, total: ans.length, won: s.won, answers: ans });
@@ -126,9 +131,9 @@ const activityLine = a => `<div class="li"><span><b>${esc(a.name)}</b> played ${
 function leaderboardFor(c) {
   if (c.remote) return Array.isArray(c.leaderboard) ? c.leaderboard : [];
   const map = scoresMap(c.id), rows = {};
-  (c.students || []).forEach(s => { rows[s.id] = { sid: s.id, name: s.name, correct: 0, answered: 0 }; });
+  (c.students || []).forEach(s => { if (!isRemoved(c, s.id)) rows[s.id] = { sid: s.id, name: studentName(c, s), correct: 0, answered: 0 }; });
   Object.keys(map).forEach(sid => {
-    if (sid === '__legacy' || sid === '__anon') return;
+    if (sid === '__legacy' || sid === '__anon' || isRemoved(c, sid)) return;
     const r = rows[sid] || (rows[sid] = { sid, name: 'Student', correct: 0, answered: 0 });
     map[sid].forEach(s => (s.answers || []).forEach(a => { r.answered++; if (a.correct) r.correct++; }));
   });
@@ -185,19 +190,47 @@ function showSettings() {
   <div class="set"><div>Allow students to post<small>Students can write on the wall</small></div><label class="sw"><input type="checkbox" id="s1" ${s.studentsCanPost ? 'checked' : ''}><span></span></label></div>
   <div class="set"><div>Show posts wall<small>Students can see the wall</small></div><label class="sw"><input type="checkbox" id="s2" ${s.wallVisible ? 'checked' : ''}><span></span></label></div>
   <div class="set"><div>Class leaderboard<small>Students see the whole class ranked by correct answers and can compete</small></div><label class="sw"><input type="checkbox" id="s3" ${s.leaderboard ? 'checked' : ''}><span></span></label></div>
+  <div class="set"><div>Students<small>${(c.students || []).length} in this class — rename or remove</small></div><button class="btn ghost" id="sr">Manage</button></div>
   <div class="set"><div>Join code<small>${c.code}</small></div><button class="btn ghost" id="sc">Show</button></div>
   <div class="foot" style="margin-top:20px"><button class="btn danger" id="dc">Delete class</button><button class="btn" id="sv">Done</button></div>`);
   $('#s1').onchange = e => { s.studentsCanPost = e.target.checked; save(); render(); };
   $('#s2').onchange = e => { s.wallVisible = e.target.checked; save(); render(); };
   $('#s3').onchange = e => { s.leaderboard = e.target.checked; save(); render(); toast(s.leaderboard ? 'Leaderboard on for students' : 'Leaderboard hidden'); };
   $('#sc').onclick = showCode;
+  $('#sr').onclick = () => { if ((c.students || []).length) showRoster(); else toast('No students yet — share the join code'); };
   $('#sv').onclick = closeModal;
   $('#dc').onclick = () => { if (confirm('Delete "' + c.name + '"? This cannot be undone.')) {
     if (!c.remote) Cloud.deleteClass(c.code).catch(() => {});
     classes = classes.filter(x => x.id !== c.id); activeId = classes.length ? classes[0].id : null; save(); closeModal(); render(); } };
 }
 function addPost(text) { const c = cur(); if (!text.trim()) return; c.posts.unshift({ id: Date.now(), by: (Cloud.profile && Cloud.profile.displayName) || 'Teacher', text: text.trim(), time: Date.now() }); save(); render(); }
-function addAssignment() { ask('New assignment', 'Students see it under Assignments.', 'Assignment title', t => { cur().assignments.unshift({ id: Date.now(), text: t, time: Date.now() }); cur().setupDone = true; tab = 'assignments'; save(); render(); }); }
+// Due dates are stored as the end of the chosen day (local time); empty = no due date.
+const dueFromInput = v => v ? new Date(v + 'T23:59:59').getTime() : null;
+const dueField = () => `<label class="pf-l">Due date <small>(optional)</small></label><input type="date" id="dueIn" class="due-in">`;
+function dueLabel(a, done) {                 // "Due Fri, Oct 30" / "Due today" / "Overdue"
+  if (!a.due) return '';
+  const d = new Date(a.due), today = new Date(); today.setHours(23, 59, 59, 0);
+  const days = Math.round((d - today) / 864e5);
+  const txt = days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : 'Due ' + d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return `<span class="due ${!done && a.due < Date.now() ? 'late' : days <= 1 && !done ? 'soon' : ''}">${!done && a.due < Date.now() ? 'Overdue · ' : ''}${txt}</span>`;
+}
+// Has this student finished this assignment? Quizzes: a finished game with that quiz since it was assigned.
+// Text assignments: the student ticks them off on their own device.
+function assignmentDone(c, a, sid) {
+  if (a.kind === 'quiz' && a.quizId) return getStudentScores(c.id, sid).some(x => x.quizId === a.quizId && !x.quit && x.time >= a.time);
+  try { return (JSON.parse(localStorage.getItem('adminhub_done_' + c.id) || '[]')).includes(a.id); } catch (e) { return false; }
+}
+function addAssignment() {
+  openModal(`<h3>New assignment</h3><p class="sub">Students see it under Assignments.</p>
+    <input type="text" id="ask" maxlength="120" placeholder="Assignment title, e.g. Read chapter 4">${dueField()}
+    <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" data-ok>Save</button></div>`);
+  $('#modal [data-x]').onclick = closeModal;
+  $('#modal [data-ok]').onclick = () => {
+    const t = $('#ask').value.trim(); if (!t) return;
+    closeModal(); cur().assignments.unshift({ id: Date.now(), text: t, time: Date.now(), due: dueFromInput($('#dueIn').value) });
+    cur().setupDone = true; tab = 'assignments'; save(); render();
+  };
+}
 function focusPost() { tab = 'activity'; render(); const t = $('#postBox'); if (t) t.focus(); }
 
 function listHtml(items, key, empty, opts = {}) {
@@ -210,7 +243,9 @@ function listHtml(items, key, empty, opts = {}) {
         ${opts.showStats ? `<button class="iconbtn-sm" data-stats-for="${i.id}" title="View stats" style="margin-left:auto;background:#E6EEFB;color:#2F65C8"><i class='bx bxs-bar-chart-alt-2'></i></button>` : ''}
       </div>`;
     }
-    return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bx-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}</small></div>
+    const c = cur(), roster = (c.students || []).filter(s => !isRemoved(c, s.id));
+    const progress = key === 'assignments' && i.kind === 'quiz' && roster.length ? ` · <b>${roster.filter(s => assignmentDone(c, i, s.id)).length}/${roster.length} done</b>` : '';
+    return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bx-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}${progress} ${dueLabel(i, false)}</small></div>
       <button class="del" data-del="${key}:${i.id}" aria-label="Delete"><i class='bx bx-trash'></i></button></div><p>${esc(i.text)}</p>${extra}</div>`;
   }).join('')}</div>`;
 }
@@ -236,7 +271,7 @@ function dashHtml(c) {
         let tot = 0, cor = 0;
         sc.forEach(x => (x.answers || []).forEach(a => { tot++; if (a.correct) cor++; }));
         const m = tot ? Math.round(cor / tot * 100) : 0;
-        return `<div class="li"><span><i class='bx bxs-user' style="margin-right:6px;color:var(--blue)"></i>${esc(s.name)}</span><span>${m}%</span></div>`;
+        return `<div class="li"><span><i class='bx bxs-user' style="margin-right:6px;color:var(--blue)"></i>${esc(studentName(c, s))}</span><span>${m}%</span></div>`;
       }).join('')
     : '<div class="none">No students yet. Share the join code.</div>';
 
@@ -288,22 +323,38 @@ function showRoster() {
     const scores = getStudentScores(c.id, s.id);
     let total = 0, correct = 0;
     scores.forEach(sc => (sc.answers || []).forEach(a => { total++; if (a.correct) correct++; }));
-    return { s, games: scores.length, mastery: total ? Math.round(correct / total * 100) : 0 };
+    return { s, name: studentName(c, s), games: scores.length, mastery: total ? Math.round(correct / total * 100) : 0 };
   });
-  openModal(`<h3>Students in ${esc(c.name)}</h3><p class="sub">${rows.length} student${rows.length === 1 ? '' : 's'} · sorted by join date</p>
+  openModal(`<h3>Students in ${esc(c.name)}</h3><p class="sub">${rows.length} student${rows.length === 1 ? '' : 's'} · rename or remove anyone</p>
     <div style="max-height:52vh;overflow-y:auto;margin-bottom:14px">
       ${rows.map(r => `
-        <div style="padding:12px 0;border-bottom:1px solid var(--grey);display:flex;align-items:center;gap:12px">
-          <div style="width:40px;height:40px;border-radius:50%;background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none">${esc((r.s.name.match(/\d+/) || ['?'])[0])}</div>
+        <div class="roster-row">
+          <div class="roster-av">${esc((r.name.trim()[0] || '?').toUpperCase())}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:600;color:var(--dark)">${esc(r.s.name)}</div>
-            <div style="font-size:12px;color:var(--dark-grey)">${r.games} game${r.games === 1 ? '' : 's'} · Joined ${fmt(r.s.joinedAt)}</div>
+            <div class="roster-name">${esc(r.name)}${r.name !== r.s.name ? ` <small>(signed up as ${esc(r.s.name)})</small>` : ''}</div>
+            <div class="roster-meta">${r.games} game${r.games === 1 ? '' : 's'} · ${r.mastery}% correct${r.s.joinedAt ? " · joined " + fmt(r.s.joinedAt) : ""}</div>
           </div>
-          <div style="text-align:right"><div style="font-size:18px;font-weight:700;color:var(--blue)">${r.mastery}%</div><div style="font-size:11px;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.04em">mastery</div></div>
+          <button class="iconbtn-sm" data-rn="${esc(r.s.id)}" title="Rename"><i class='bx bx-edit'></i></button>
+          <button class="iconbtn-sm danger" data-rm="${esc(r.s.id)}" title="Remove from class"><i class='bx bx-user-x'></i></button>
         </div>`).join('')}
     </div>
     <div class="foot"><button class="btn ghost" data-x>Close</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
+  $('#modal').querySelectorAll('[data-rn]').forEach(b => b.onclick = () => {
+    const s = students.find(x => x.id === b.dataset.rn); if (!s) return;
+    ask('Rename student', 'This is the name you, the leaderboard and reports will show.', 'Student name', name => {
+      c.renames = c.renames || {}; c.renames[s.id] = name.slice(0, 30); save(); render(); showRoster(); toast('Renamed to ' + name);
+    }, studentName(c, s));
+  });
+  $('#modal').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+    const s = students.find(x => x.id === b.dataset.rm); if (!s) return;
+    if (!confirm('Remove ' + studentName(c, s) + ' from ' + c.name + '? Their results are hidden from your reports and the leaderboard. They can rejoin with the class code.')) return;
+    c.removed = c.removed || {}; c.removed[s.id] = Date.now();
+    c.students = c.students.filter(x => x.id !== s.id);
+    if (!c.remote) Cloud.removeStudent(c.code, s.id).catch(e => console.warn('Remove failed', e));
+    save(); render(); toast('Removed ' + studentName(c, s));
+    if (c.students.length) showRoster(); else closeModal();
+  });
 }
 
 /* ===================== Teacher: assignment stats ===================== */
@@ -314,7 +365,7 @@ function showAssignmentStats(a) {
   const questions = qset ? qset.questions : [];
   const students = c.students || [];
 
-  const perStudent = students.map(s => {
+  const perStudent = students.map(s => ({ ...s, name: studentName(c, s) })).map(s => {
     const scores = getStudentScores(c.id, s.id).filter(x => x.quizId === quizId);
     let total = 0, correct = 0;
     scores.forEach(sc => (sc.answers || []).forEach(ans => { total++; if (ans.correct) correct++; }));
@@ -349,6 +400,7 @@ function showAssignmentStats(a) {
   });
 
   const playedNames = perStudent.map(p => p.s.name).join(', ') || 'No one has played yet';
+  const notDone = students.filter(s => !isRemoved(c, s.id) && !assignmentDone(c, a, s.id)).map(s => studentName(c, s));
 
   let worstQBlock = '';
   if (worstQ !== null && worstPct > 0 && questions[worstQ]) {
@@ -379,6 +431,10 @@ function showAssignmentStats(a) {
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dark-grey);margin-bottom:6px"><span>Questions answered correctly</span><span><b style="color:var(--blue);font-size:15px">${pct}%</b></span></div>
       <div style="height:14px;background:var(--grey);border-radius:8px;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,#26890c,#4ab54b);width:${pct}%;transition:width .3s"></div></div>
       <div style="font-size:12px;color:var(--dark-grey);margin-top:4px">${totalCorrect} of ${totalAnswers} correct</div>
+    </div>
+    <div style="margin-top:12px;padding:14px;background:${notDone.length ? '#fff6d6' : '#e6f5e9'};border-radius:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">${notDone.length ? 'Not done yet (' + notDone.length + ')' : 'Everyone is done'}</div>
+      <div style="font-size:13px">${notDone.length ? esc(notDone.join(', ')) : 'Every student has finished a game with this quiz.'}${a.due ? ' · ' + dueLabel(a, !notDone.length) : ''}</div>
     </div>
     ${worstQBlock}
     ${worstStudentBlock}
@@ -782,17 +838,17 @@ function renderStudentHome(c, scores) {
   const body = document.getElementById('studentTabBody');
   const wins = scores.filter(s => s.won).length;
   const showWall = c.settings && c.settings.wallVisible !== false;
-  const nextAssign = c.assignments[0] || null;
+  const todoRows = studentTodo(c).filter(r => !r.done), nextAssign = todoRows.length ? todoRows[0].a : null;
   const recentPosts = showWall ? c.posts.slice(0, 3) : [];
   const practiceSets = studentSetsFor(c);
 
   let nextAssignBlock = '';
   if (nextAssign) {
     nextAssignBlock = `<div class="shsection">
-      <h3><i class='bx bx-task'></i> Latest assignment</h3>
+      <h3><i class='bx bx-task'></i> Next up</h3>
       <div class="shline">
         <div class="shl-icon"><i class='bx bx-task'></i></div>
-        <div class="shl-info"><b>${esc(nextAssign.text)}</b><small>${fmt(nextAssign.time)}${nextAssign.kind === 'quiz' ? ' · quiz' : ''}</small></div>
+        <div class="shl-info"><b>${esc(nextAssign.text)}</b><small>${fmt(nextAssign.time)}${nextAssign.kind === 'quiz' ? ' · quiz' : ''} ${dueLabel(nextAssign, false)}</small></div>
         ${nextAssign.kind === 'quiz' && nextAssign.quizId ? `<div class="shl-actions">${assignPlayBtn(nextAssign)}</div>` : ''}
       </div>
       <button class="seeall" data-student-tab-link="assignments">See all assignments</button>
@@ -814,7 +870,7 @@ function renderStudentHome(c, scores) {
     <div class="shwelcome"><h1>Hi ${esc(studentIdentity.name || 'there')}, welcome to ${esc(c.name)}!</h1><p>Everything your teacher posts and assigns will show up here.</p></div>
     <div class="shgrid">
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-message-rounded'></i></div><b>${showWall ? c.posts.length : '—'}</b><small>Posts</small></div>
-      <div class="shcard"><div class="shc-icon"><i class='bx bx-task'></i></div><b>${c.assignments.length}</b><small>Assignments</small></div>
+      <div class="shcard"><div class="shc-icon"><i class='bx bx-task'></i></div><b>${todoRows.length}</b><small>To-do</small></div>
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-trophy'></i></div><b>${wins}</b><small>Wins</small></div>
       <div class="shcard"><div class="shc-icon"><i class='bx bxs-joystick'></i></div><b>${scores.length}</b><small>Games played</small></div>
     </div>
@@ -837,16 +893,36 @@ function renderStudentPosts(c) {
   body.innerHTML = `<div class="card">${c.posts.map(p => `<div class="student-post"><div class="meta">${tAv(teacherOf(c))}<div><b>${esc(teacherOf(c).name)}</b><small>${fmt(p.time)}</small></div></div><p>${esc(p.text)}</p></div>`).join('')}</div>`;
 }
 
+function studentTodo(c) {                   // [{a, done}] with to-do first (soonest due first), then done
+  const me = studentIdentity.id;
+  const rows = c.assignments.map(a => ({ a, done: assignmentDone(c, a, me) }));
+  const byDue = (x, y) => (x.a.due || Infinity) - (y.a.due || Infinity) || y.a.time - x.a.time;
+  return rows.filter(r => !r.done).sort(byDue).concat(rows.filter(r => r.done));
+}
 function renderStudentAssignments(c) {
   const body = document.getElementById('studentTabBody');
   if (!c.assignments.length) { body.innerHTML = `<div class="card"><div class="student-empty">No assignments yet. Check back soon!</div></div>`; return; }
-  body.innerHTML = `<div class="card">${c.assignments.map(a => `<div class="student-post">
-    <div class="meta">${tAv(teacherOf(c), 'bx-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''}</small></div></div>
+  const rows = studentTodo(c), todo = rows.filter(r => !r.done), done = rows.filter(r => r.done);
+  const item = ({ a, done }) => `<div class="student-post ${done ? 'is-done' : ''}">
+    <div class="meta">${tAv(teacherOf(c), 'bx-task', '#2F65C8')}<div><b>${esc(teacherOf(c).name)}</b><small>Assignment · ${fmt(a.time)}${a.kind === 'quiz' ? ' · quiz' : ''} ${dueLabel(a, done)}</small></div>
+      ${done ? `<span class="done-tag"><i class='bx bx-check'></i> Done</span>` : ''}</div>
     <p>${esc(a.text)}</p>
-    ${a.kind === 'quiz' && a.quizId ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      ${assignPlayBtn(a)}
-    </div>` : ''}
-  </div>`).join('')}</div>`;
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      ${a.kind === 'quiz' && a.quizId ? assignPlayBtn(a) : ''}
+      ${a.kind !== 'quiz' ? `<button class="btn ghost" data-tick="${a.id}">${done ? 'Mark not done' : 'Mark done'}</button>` : ''}
+      ${a.kind === 'quiz' && !done ? '<small class="hint-done">Finish a game with this quiz to complete it.</small>' : ''}
+    </div>
+  </div>`;
+  body.innerHTML = `<h3 class="todo-h">To-do <span class="badge">${todo.length}</span></h3>
+    <div class="card">${todo.length ? todo.map(item).join('') : '<div class="student-empty">All caught up!</div>'}</div>
+    ${done.length ? `<h3 class="todo-h">Done <span class="badge">${done.length}</span></h3><div class="card">${done.map(item).join('')}</div>` : ''}`;
+  body.querySelectorAll('[data-tick]').forEach(b => b.onclick = () => {
+    const key = 'adminhub_done_' + c.id, id = Number(b.dataset.tick);
+    let list = []; try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+    list = list.includes(id) ? list.filter(x => x !== id) : list.concat(id);
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+    renderStudentClass();
+  });
   wireStudentBodyHandlers();
 }
 
@@ -904,7 +980,7 @@ function renderAnalytics() {
   let tot = 0, cor = 0; acts.forEach(a => { tot += a.total; cor += a.correct; });
   // per student
   const per = {};
-  (c.students || []).forEach(s => { per[s.id] = { name: s.name, games: 0, total: 0, correct: 0, last: 0 }; });
+  (c.students || []).forEach(s => { per[s.id] = { name: studentName(c, s), games: 0, total: 0, correct: 0, last: 0 }; });
   acts.forEach(a => { const p = per[a.sid] || (per[a.sid] = { name: a.name, games: 0, total: 0, correct: 0, last: 0 });
     p.games++; p.total += a.total; p.correct += a.correct; p.last = Math.max(p.last, a.time); });
   const studs = Object.values(per).map(p => ({ ...p, pct: p.total ? Math.round(p.correct / p.total * 100) : null }))
@@ -1010,6 +1086,7 @@ function renderQuestionSets() {
       </div>
       <div class="playrow">
         ${gameBtns('data-play', qs.id)}
+        ${qs.questions.some(q => !q.hangmanAnswer) ? `<button class="btn ghost hm-add" data-hmadd="${qs.id}"><i class='bx bxs-pencil'></i> ${qs.questions.some(q => q.hangmanAnswer) ? 'Fill in missing Hangman clues' : 'Add Hangman clues'}</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1020,6 +1097,7 @@ function renderQuestionSets() {
     toast('Practice ' + (qs.practiceAllowed === false ? 'hidden' : 'shown'));
   });
   list.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => assignQuiz(b.dataset.assign));
+  list.querySelectorAll('[data-hmadd]').forEach(b => b.onclick = () => addHangmanClues(b.dataset.hmadd, b));
   list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editQuiz(b.dataset.edit));
   list.querySelectorAll('[data-delqs]').forEach(b => b.onclick = () => { if (!confirm('Delete this question set?')) return; qsets = qsets.filter(x => x.id !== b.dataset.delqs); saveQSets(); renderQuestionSets(); });
 }
@@ -1035,8 +1113,8 @@ function assignQuiz(qsId) {
   $('#assignList').addEventListener('click', e => {
     const b = e.target.closest('[data-cid]'); if (!b) return;
     const c = classes.find(x => x.id === b.dataset.cid); if (!c) return;
-    chooseAssignGame(qs, game => {
-      addAssignmentForClass(c, qs, game);
+    chooseAssignGame(qs, (game, due) => {
+      addAssignmentForClass(c, qs, game, due);
       toast('Assigned to ' + c.name);
       if (cur() && cur().id === c.id) { tab = 'assignments'; render(); }
       renderQuestionSets();
@@ -1047,15 +1125,16 @@ function assignQuiz(qsId) {
 function chooseAssignGame(qs, done) {
   const hasClues = qs.questions.some(q => q.hangmanAnswer);
   openModal(`<h3>Which game?</h3><p class="sub">Students play "${esc(qs.title)}" in this game.</p>
+    ${dueField()}
     <div class="gpick"><button class="gcard" data-ag=""><span class="gic" style="background:#1fa971"><i class='bx bxs-joystick'></i></span><b>Students pick</b><small>Any game they like</small></button>
     ${GAMES.map(g => { const off = g.id === 'hangman' && !hasClues;
       return `<button class="gcard" data-ag="${g.id}" ${off ? 'disabled style="opacity:.45"' : ''}><span class="gic" style="background:${g.color}"><i class='bx ${g.icon}'></i></span><b>${g.name}</b><small>${off ? 'No Hangman clues in this set' : (GAME_DESC[g.id] || '')}</small></button>`; }).join('')}</div>
     <div class="foot"><button class="btn ghost" data-x>Cancel</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
-  $('#modal').querySelectorAll('[data-ag]').forEach(b => b.onclick = () => { if (b.disabled) return; closeModal(); done(b.dataset.ag || null); });
+  $('#modal').querySelectorAll('[data-ag]').forEach(b => b.onclick = () => { if (b.disabled) return; const due = dueFromInput($('#dueIn').value); closeModal(); done(b.dataset.ag || null, due); });
 }
-function addAssignmentForClass(c, qs, game) {
-  c.assignments.unshift({ id: Date.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)' + (game ? ' · ' + gameName(game) : ''), time: Date.now(), kind: 'quiz', quizId: qs.id, game: game || null });
+function addAssignmentForClass(c, qs, game, due) {
+  c.assignments.unshift({ id: Date.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)' + (game ? ' · ' + gameName(game) : ''), time: Date.now(), kind: 'quiz', quizId: qs.id, game: game || null, due: due || null });
   c.setupDone = true;
   qs.assignedTo = qs.assignedTo || [];
   if (!qs.assignedTo.includes(c.id)) qs.assignedTo.push(c.id);
@@ -1071,7 +1150,7 @@ function pickAndAssignQuiz() {
   $('#qsPick').addEventListener('click', e => {
     const b = e.target.closest('[data-qsid]'); if (!b) return;
     const qs = qsets.find(x => x.id === b.dataset.qsid); if (!qs) return;
-    chooseAssignGame(qs, game => { addAssignmentForClass(c, qs, game); toast('Assigned "' + qs.title + '"'); render(); });
+    chooseAssignGame(qs, (game, due) => { addAssignmentForClass(c, qs, game, due); toast('Assigned "' + qs.title + '"'); render(); });
   });
 }
 
@@ -1205,6 +1284,10 @@ function qeQCardHtml(q, qi) {
       <div><label>Time limit (seconds)</label><input type="text" data-field="timeLimit" value="${q.timeLimit || 20}"></div>
       <div style="flex:2"><label>Explanation (shown after answer)</label><textarea data-field="explanation" rows="2" placeholder="Why is the answer correct?">${esc(q.explanation || '')}</textarea></div>
     </div>
+    <div class="qe-qextra qe-hang">
+      <div style="flex:2"><label>Hangman clue</label><input type="text" data-field="hangmanClue" maxlength="140" value="${esc(q.hangmanClue || '')}" placeholder="e.g. He was president during the Civil War"></div>
+      <div><label>Hangman answer (1–5 words)</label><input type="text" data-field="hangmanAnswer" maxlength="30" value="${esc(q.hangmanAnswer || '')}" placeholder="e.g. Abraham Lincoln"></div>
+    </div>
   </div>`;
 }
 
@@ -1238,6 +1321,7 @@ function wireQEEditCards() {
     tl.addEventListener('input', () => { const n = parseInt(tl.value, 10); q.timeLimit = Number.isFinite(n) ? n : 20; markQEDirty(); });
     const ex = card.querySelector('[data-field="explanation"]');
     ex.addEventListener('input', () => { q.explanation = ex.value; markQEDirty(); });
+    ['hangmanClue', 'hangmanAnswer'].forEach(f => { const inp = card.querySelector(`[data-field="${f}"]`); inp.addEventListener('input', () => { q[f] = inp.value; markQEDirty(); }); });
   });
 
   body.querySelectorAll('[data-up]').forEach(b => b.onclick = () => {
@@ -1304,7 +1388,10 @@ function saveQuestionEditor() {
     const q = qs.questions[i];
     if (!q.question || !q.question.trim()) return toast('Question ' + (i + 1) + ' is empty');
     if (q.options.some(o => !o || !o.trim())) return toast('Question ' + (i + 1) + ' has an empty option');
+    const hc = (q.hangmanClue || '').trim(), ha = (q.hangmanAnswer || '').trim();
+    if ((hc || ha) && !hangmanFields(q).hangmanAnswer) return toast('Question ' + (i + 1) + ': Hangman needs both a clue and a 1–5 word answer');
   }
+  qs.questions.forEach(q => { const h = hangmanFields(q); delete q.hangmanClue; delete q.hangmanAnswer; Object.assign(q, h); });   // tidy / drop empty
   // Commit to the real qsets array
   const real = qsets.find(x => x.id === qeState.originalId);
   if (real) {
@@ -1384,6 +1471,7 @@ function renderAIErrors() {
   const panel = document.getElementById('aiErrors'), list = document.getElementById('aiErrorList'), cnt = document.getElementById('aiErrCount'), tot = document.getElementById('aiErrTotal');
   if (!panel || !list) return;
   cnt.textContent = aiErrors.length; tot.textContent = aiErrors.length;
+  document.getElementById('aiErrorsToggle').style.display = aiErrors.length ? '' : 'none';   // debugging help, only when something failed
   panel.hidden = aiErrors.length === 0;
   list.innerHTML = aiErrors.map(e => `<li><b>${esc(e.label)} <span style="opacity:.6;font-weight:400">· ${esc(e.time)}</span></b>${esc(e.detail)}${e.context ? '<br><span style="opacity:.7">' + esc(e.context) + '</span>' : ''}</li>`).join('');
 }
@@ -1594,6 +1682,28 @@ function normalizePuter(res) {
   if (res && res.error) throw new Error('Puter error: ' + (res.error.message || JSON.stringify(res.error)));
   throw new Error('Unknown shape: ' + JSON.stringify(res).slice(0, 300));
 }
+// Older sets (made before Hangman) get clues written by the AI for every question that's missing one.
+async function addHangmanClues(id, btn) {
+  const qs = qsets.find(x => x.id === id); if (!qs) return;
+  const missing = qs.questions.map((q, i) => ({ q, i })).filter(x => !x.q.hangmanAnswer);
+  if (!missing.length) return toast('Every question already has a Hangman clue');
+  const prompt = `You write Hangman puzzles for a classroom quiz. Return ONLY valid JSON, no prose, no markdown:
+{"items":[{"i":0,"hangmanClue":"...","hangmanAnswer":"..."}]}
+For each numbered question below, write a separate short clue on the same topic (do not copy the question word for word) and its answer:
+1 to 3 words (5 words absolute max, 25 letters max), letters and numbers only, no punctuation.
+Questions:
+${missing.map(x => x.i + '. ' + x.q.question + ' (correct answer: ' + (x.q.options[x.q.correct] || '') + ')').join('\n')}`;
+  if (btn) { btn.disabled = true; btn.innerHTML = "<i class='bx bx-loader-alt spin'></i> Writing clues…"; }
+  try {
+    const raw = await aiChat(prompt);
+    const txt = String(raw).replace(/^```(?:json)?/i, '').replace(/```$/, '');
+    const obj = JSON.parse(txt.slice(txt.indexOf('{'), txt.lastIndexOf('}') + 1));
+    let added = 0;
+    (obj.items || []).forEach(it => { const q = qs.questions[it.i]; if (!q || q.hangmanAnswer) return; const h = hangmanFields(it); if (h.hangmanAnswer) { Object.assign(q, h); added++; } });
+    saveQSets(); toast(added ? 'Added Hangman clues to ' + added + ' question' + (added === 1 ? '' : 's') : 'The AI didn’t return usable clues — try again');
+  } catch (e) { if (!e.noPuter) { logAIError('Hangman clues failed', e); toast('Couldn’t write clues — try again'); } }
+  renderQuestionSets();
+}
 // Hangman's own clue + short answer (kept only if the answer is really short: max 5 words / 30 characters)
 function hangmanFields(q) {
   const clue = typeof q.hangmanClue === 'string' ? q.hangmanClue.trim() : '';
@@ -1781,6 +1891,7 @@ function cloudWatchTeacher() {            // pull students + scores from student
     Cloud.watchStudents(c.code, list => {
       c.students = c.students || []; let changed = false;
       list.forEach(st => {
+        if (isRemoved(c, st.sid)) { if ((st.lastSeen || 0) > c.removed[st.sid]) { delete c.removed[st.sid]; changed = true; } else return; }   // rejoined after being removed
         const ex = c.students.find(x => x.id === st.sid);
         if (!ex) { c.students.push({ id: st.sid, name: st.name, joinedAt: st.joinedAt, lastSeen: st.lastSeen }); changed = true; }
         else if (ex.name !== st.name || ex.lastSeen !== st.lastSeen) { ex.name = st.name; ex.lastSeen = st.lastSeen; changed = true; }
@@ -1807,8 +1918,10 @@ function applyRemoteClass(d) {
   const b = document.createElement('div'); b.id = 'cloudBadge';
   b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:600 11px Poppins,sans-serif;padding:4px 10px;border-radius:20px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);max-width:70vw';
   const paint = () => {
-    const m = { ok: ['#1a8a3c', '☁️ Cloud connected'], connecting: ['#b8860b', '☁️ Connecting…'], error: ['#DB504A', '☁️ Cloud error: ' + Cloud.lastError], offline: ['#777', '☁️ Cloud offline'] }[Cloud.status] || ['#777', '☁️ ?'];
-    b.style.color = m[0]; b.textContent = m[1];
+    // only shown when there's a problem — a working connection needs no badge
+    const m = { error: ['#DB504A', 'Can’t reach ClassQuiz right now — changes will sync when you’re back online'], offline: ['#777', 'Offline — changes stay on this device'] }[Cloud.status];
+    b.style.display = m ? '' : 'none';
+    if (m) { b.style.color = m[0]; b.textContent = m[1]; b.title = Cloud.lastError || ''; }
   };
   window.addEventListener('cloudstatus', paint); paint();
   document.body.appendChild(b);

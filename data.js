@@ -14,11 +14,11 @@ window.Cloud = (function () {
   const noop = async () => null, off = () => () => {};
   const api = {
     enabled: false, uid: null, user: null, profile: null, ready: Promise.resolve(false), status: 'offline', lastError: '',
-    publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop,
+    publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop,
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=9'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=10'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -136,6 +136,8 @@ window.Cloud = (function () {
     await classRef(code).collection('students').doc(api.uid).set(
       { sid: st.sid, name: String(st.name || '').slice(0, 30), joinedAt: st.joinedAt || Date.now(), lastSeen: Date.now() });
   });
+  // Teacher removes a student from the class roster (the rules let the class owner delete roster entries).
+  api.removeStudent = guard(async (code, uid) => { await classRef(code).collection('students').doc(uid).delete(); });
   api.submitScore = guard(async (code, r) => {
     await classRef(code).collection('scores').add({
       uid: api.uid, sid: r.sid, name: String(r.name || '').slice(0, 30), game: r.game, quizId: String(r.quizId || 'preset'),
