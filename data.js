@@ -18,7 +18,7 @@ window.Cloud = (function () {
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=4'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=5'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -116,6 +116,7 @@ window.Cloud = (function () {
     const payload = clean({
       id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings,
       posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [],
+      leaderboard: c.leaderboard || [],          // ranked names + correct answers, only filled while the teacher has it switched on
       qsets: qsets || [], ownerUid: api.uid,
       teacher: { name: (api.profile && api.profile.displayName) || 'Teacher', photo: (api.profile && api.profile.photo) || '' }
     });

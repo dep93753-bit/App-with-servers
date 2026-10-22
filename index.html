@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AdminHub – Classes</title>
+<title>ClassQuiz</title>
 <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 <link href='https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap' rel='stylesheet'>
 <script src="https://js.puter.com/v2/"></script>
@@ -16,10 +16,7 @@ window.addEventListener('load', function () {
   }
 });
 </script>
-<link rel="stylesheet" href="styles.css?v=2">
-  <meta property="og:image" content="https://bolt.new/static/og_default.png">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 <div id="authGate" hidden>
@@ -73,23 +70,20 @@ window.addEventListener('load', function () {
   </div>
 </div>
 <section id="sidebar">
-  <a href="#" class="brand"><i class='bx bxs-smile bx-lg'></i><span class="text">AdminHub</span></a>
+  <a href="#" class="brand"><i class='bx bxs-smile bx-lg'></i><span class="text">ClassQuiz</span></a>
   <ul class="side-menu top teacher-menu">
     <li class="active" data-view="classes"><a href="#"><i class='bx bxs-graduation bx-sm'></i><span class="text">Classes</span></a></li>
     <li data-view="ai"><a href="#"><i class='bx bxs-bot bx-sm'></i><span class="text">AI Quiz</span></a></li>
     <li data-view="questions"><a href="#"><i class='bx bx-list-check bx-sm'></i><span class="text">Questions</span></a></li>
-    <li><a href="#"><i class='bx bxs-shopping-bag-alt bx-sm'></i><span class="text">My Store</span></a></li>
-    <li><a href="#"><i class='bx bxs-doughnut-chart bx-sm'></i><span class="text">Analytics</span></a></li>
-    <li><a href="#"><i class='bx bxs-message-dots bx-sm'></i><span class="text">Message</span></a></li>
-    <li><a href="#"><i class='bx bxs-group bx-sm'></i><span class="text">Team</span></a></li>
+    <li data-view="analytics"><a href="#"><i class='bx bxs-doughnut-chart bx-sm'></i><span class="text">Analytics</span></a></li>
   </ul>
   <ul class="side-menu top student-menu" style="display:none">
-    <li class="active"><a href="#"><i class='bx bxs-graduation bx-sm'></i><span class="text">My Class</span></a></li>
+    <li class="active"><a href="#"><i class='bx bxs-graduation bx-sm'></i><span class="text">My classes</span></a></li>
     <li><a href="#" id="studentLeaveBtn" class="logout" style="display:none"><i class='bx bx-log-out bx-sm'></i><span class="text">Leave class</span></a></li>
   </ul>
   <ul class="side-menu bottom">
     <li><a href="#" id="puterLogout" class="logout" style="display:none"><i class='bx bx-log-out bx-sm'></i><span class="text">Sign out of Puter</span></a></li>
-    <li><a href="#"><i class='bx bxs-cog bx-sm'></i><span class="text">Settings</span></a></li>
+    <li><a href="#" id="settingsLink"><i class='bx bxs-cog bx-sm'></i><span class="text">Account</span></a></li>
     <li><a href="#" class="logout" id="appLogout"><i class='bx bx-power-off bx-sm'></i><span class="text">Logout</span></a></li>
   </ul>
 </section>
@@ -97,12 +91,11 @@ window.addEventListener('load', function () {
 <section id="content">
   <nav>
     <i class='bx bx-menu bx-sm'></i>
-    <a href="#" class="nav-link">Categories</a>
-    <form action="#"><div class="form-input"><input type="search" placeholder="Search..."><button type="submit"><i class='bx bx-search'></i></button></div></form>
-    <a href="#" class="notification" id="notificationIcon"><i class='bx bxs-bell'></i><span class="num">8</span></a>
-    <div class="dd" id="notificationMenu"><ul><li>New message from John</li><li>Your order has been shipped</li><li>New comment on your post</li><li>Reminder: Meeting at 3PM</li></ul></div>
+    <span class="nav-spacer"><b class="nav-brand">ClassQuiz</b></span>
+    <a href="#" class="notification" id="notificationIcon" title="Recent student activity"><i class='bx bxs-bell'></i><span class="num" id="notifNum" hidden></span></a>
+    <div class="dd" id="notificationMenu"><ul id="notifList"></ul></div>
     <a href="#" class="profile" id="profileIcon"><img src="https://placehold.co/600x400/png" alt="Profile"></a>
-    <div class="dd" id="profileMenu"><ul><li id="pmProfile">My profile</li><li id="pmOut">Log out</li></ul></div>
+    <div class="dd" id="profileMenu"><ul><li id="pmProfile">My account</li><li id="pmOut">Log out</li></ul></div>
   </nav>
 
   <main>
@@ -158,6 +151,18 @@ window.addEventListener('load', function () {
       <div id="qsList"></div>
     </div>
 
+    <div class="view" id="analyticsView" data-view="analytics">
+      <div class="pagehead">
+        <div>
+          <h1>Analytics</h1>
+          <p>How each class is doing: who needs help, which questions get missed, and what students play.</p>
+        </div>
+      </div>
+      <div id="anBody"></div>
+    </div>
+
+    <div class="class-tabs" id="studentClassTabs" hidden></div>
+
     <div class="view" id="studentJoinView">
       <div class="student-join-wrap">
         <div class="student-join-card">
@@ -177,6 +182,8 @@ window.addEventListener('load', function () {
   </main>
 </section>
 
+<nav class="bottombar" id="bottomBar" aria-label="Main"></nav>
+
 <div class="scrim" id="scrim"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
 <div class="scrim" id="authScrim"><div class="modal" id="authModal"></div></div>
@@ -191,7 +198,7 @@ window.addEventListener('load', function () {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <!-- bump ?v= on these (and app.js in data.js) after changing them, so browsers skip their old cached copy -->
 <script src="auth.js?v=2"></script>
-<script src="data.js?v=4"></script>
+<script src="data.js?v=5"></script>
 <!-- data.js loads app.js after sign-in -->
 </body>
 </html>
