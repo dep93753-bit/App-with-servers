@@ -9,6 +9,8 @@
 <link href='https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap' rel='stylesheet'>
 <script src="https://js.puter.com/v2/"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- Motion: smooth pop-ups, tab changes and count-ups (the app works fine without it) -->
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js" defer></script>
 <script>
 window.addEventListener('load', function () {
   if (window.pdfjsLib) {
@@ -17,7 +19,7 @@ window.addEventListener('load', function () {
   }
 });
 </script>
-<link rel="stylesheet" href="styles.css?v=9">
+<link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 <div id="authGate" hidden>
@@ -199,7 +201,7 @@ window.addEventListener('load', function () {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <!-- bump ?v= on these (and app.js in data.js) after changing them, so browsers skip their old cached copy -->
 <script src="auth.js?v=2"></script>
-<script src="data.js?v=11"></script>
+<script src="data.js?v=12"></script>
 <!-- data.js loads app.js after sign-in -->
 </body>
 </html>

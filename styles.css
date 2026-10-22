@@ -147,8 +147,8 @@ main{padding:28px 24px;color:var(--dark)}
 .sw span::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .sw input:checked+span{background:var(--blue)}
 .sw input:checked+span::after{transform:translateX(20px)}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:var(--light);padding:10px 20px;border-radius:30px;font-size:14px;z-index:6000;opacity:0;pointer-events:none;transition:.2s}
-.toast.show{opacity:1}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:var(--light);padding:10px 20px;border-radius:30px;font-size:14px;z-index:6000;opacity:0;pointer-events:none;transform:translate(-50%,12px);transition:opacity .2s ease-out,transform .25s cubic-bezier(.23,1,.32,1)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
 .nothing{padding:60px 20px;text-align:center;color:var(--dark-grey)}
 @media(max-width:768px){.classes{grid-template-columns:1fr}.rail{position:static}#content nav .nav-link{display:none}}
 @media(max-width:576px){#content nav .form-input input{display:none}.tabs button{padding:10px 12px;font-size:14px}}
@@ -590,3 +590,7 @@ html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* ===== buttons press in slightly when tapped (Motion handles the rest in app.js) ===== */
+.btn,.iconbtn,.iconbtn-sm,.class-tabs button,.tabs button,.bottombar a,.bottombar button,.codechip{transition:transform .12s ease-out}
+.btn:active,.iconbtn:active,.iconbtn-sm:active,.tabs button:active,.bottombar a:active,.bottombar button:active,.codechip:active{transform:scale(.97)}
