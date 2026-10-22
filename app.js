@@ -1328,7 +1328,7 @@ document.querySelectorAll('#sidebar .side-menu.top li a').forEach(a => a.addEven
 (function ensurePreset() {
   if (!qsets.some(q => q.id === 'qs_preset')) { qsets.push({ id: 'qs_preset', title: 'Preset Quiz', created: Date.now(), questions: PRESET_QUESTIONS, source: 'preset' }); saveQSets(); }
   const pre = qsets.find(q => q.id === 'qs_preset');   // older saved copies of the preset don't have Hangman clues yet
-  if (pre && pre.source === 'preset' && !pre.questions.some(q => q.hangmanAnswer)) { pre.questions = PRESET_QUESTIONS; saveQSets(); }
+  if (pre && !(pre.questions || []).some(q => q.hangmanAnswer)) { pre.questions = PRESET_QUESTIONS; saveQSets(); }
 })();
 document.getElementById('puterLogout').addEventListener('click', e => { e.preventDefault(); puterLogout(); });
 

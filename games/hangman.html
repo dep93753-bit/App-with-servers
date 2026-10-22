@@ -30,6 +30,7 @@
   .k.good{background:#16a34a}.k.bad{background:#475569;opacity:.5}
   .k:disabled{cursor:default}
   .btn{padding:11px 26px;border:none;border-radius:10px;background:#facc15;color:#1e1b4b;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  .btn:disabled{background:#475569;color:#cbd5e1;cursor:not-allowed}
   .btn.ghost{background:rgba(255,255,255,.18);color:#f1f5f9}
   .card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:20px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;width:100%;max-width:420px}
   .lv{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
@@ -107,10 +108,10 @@
     $('startCard').hidden = false; $('game').hidden = true; $('endCard').hidden = true;
     if (rounds.length) {
       $('startInfo').textContent = rounds.length + ' clue' + (rounds.length === 1 ? '' : 's') + ' in this set. Pick a difficulty:';
-      $('startBtn').disabled = false;
+      $('startBtn').disabled = false; $('lv').hidden = false;
     } else {
-      $('startInfo').textContent = 'This question set has no Hangman clues yet. Make a new set with AI Quiz — new sets include Hangman clues automatically.';
-      $('startBtn').disabled = true;
+      $('startInfo').innerHTML = '<b>This question set has no Hangman clues.</b><br>Sets made before Hangman was added don\'t have them. Make a new set with AI Quiz (new sets include Hangman clues), or play Hangman on the Preset Quiz.';
+      $('startBtn').disabled = true; $('lv').hidden = true;
     }
   }
 
