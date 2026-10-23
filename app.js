@@ -495,7 +495,7 @@ function render() {
       if (!c.settings.wallVisible) body += `<div class="card"><div class="wall-off">The wall is hidden from students. Only you can see it.</div></div>`;
       body += listHtml(c.posts, 'posts', 'No posts yet. Write the first one above.');
     } else if (tab === 'dashboard') {
-      body = dashHtml(c);
+      body = `<div class="dash-tools"><button class="btn ghost" id="exportGrades"><i class='bx bx-download'></i> Export grades</button></div>` + dashHtml(c);
     } else {
       body = `<div class="assign-panel">
         <div class="ap-icon"><i class='bx bx-task'></i></div>
@@ -530,6 +530,7 @@ $('#classView').addEventListener('click', e => {
   if (e.target.closest('#qsShortcut')) { nav = 'questions'; renderQuestionSets(); route(); return; }
   if (e.target.closest('#assignQuizBtn')) return pickAndAssignQuiz();
   if (e.target.closest('#assignTextBtn')) return addAssignment();
+  if (e.target.closest('#exportGrades')) return exportGrades(cur());
   const sb = e.target.closest('[data-stats-for]');
   if (sb) { const a = cur().assignments.find(x => String(x.id) === sb.dataset.statsFor); if (a) showAssignmentStats(a); return; }
   const t = e.target.closest('[data-tab]'); if (t) { const changed = tab !== t.dataset.tab; tab = t.dataset.tab; render(); if (changed) FX.enter($('#classView .tabbody')); return; }
@@ -602,6 +603,110 @@ function installApp() {
   $('#modal [data-x]').onclick = closeModal;
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker', e));
+
+/* ===================== Exports: grades spreadsheet, questions for Kahoot / Blooket ===================== */
+function downloadFile(name, data, type) {
+  const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+const fileSafe = s => String(s || 'export').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'export';
+// Spreadsheet cell: quote it, and stop a cell starting with = + - @ from running as a formula in Excel/Sheets.
+const csvCell = v => { let s = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+const toCSV = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');   // ﻿: Excel reads it as UTF-8
+
+// One row per student: overall numbers, then each quiz assignment (best % since it was assigned, or "Not done").
+function exportGrades(c) {
+  if (!c) return;
+  const students = (c.students || []).filter(s => !isRemoved(c, s.id));
+  if (!students.length) return toast('No students yet — nothing to export');
+  const quizzes = c.assignments.filter(a => a.kind === 'quiz' && a.quizId).slice().reverse();   // oldest first
+  const head = ['Student', 'Games played', 'Questions answered', 'Correct', '% correct', 'Last played']
+    .concat(quizzes.map(a => (a.text || 'Quiz').replace(/^Quiz: /, '') + (a.due ? ' (due ' + new Date(a.due).toLocaleDateString() + ')' : '')));
+  const rows = students.map(s => {
+    const sc = getStudentScores(c.id, s.id); let tot = 0, cor = 0;
+    sc.forEach(g => (g.answers || []).forEach(a => { tot++; if (a.correct) cor++; }));
+    const last = sc.reduce((m, g) => Math.max(m, g.time || 0), 0);
+    return [studentName(c, s), sc.length, tot, cor, tot ? Math.round(cor / tot * 100) + '%' : '', last ? new Date(last).toLocaleString() : '']
+      .concat(quizzes.map(a => {
+        const tries = sc.filter(g => g.quizId === a.quizId && !g.quit && g.time >= a.time && (g.answers || []).length);
+        if (!tries.length) return 'Not done';
+        return Math.max(...tries.map(g => Math.round(g.answers.filter(x => x.correct).length / g.answers.length * 100))) + '%';
+      }));
+  });
+  downloadFile(fileSafe(c.name) + '-grades-' + new Date().toISOString().slice(0, 10) + '.csv', toCSV([head].concat(rows)), 'text/csv;charset=utf-8');
+  toast('Downloaded grades for ' + students.length + ' student' + (students.length === 1 ? '' : 's'));
+}
+
+// Kahoot's importer wants an .xlsx file. This builds a small one right here (no extra library):
+// an .xlsx is a zip of a few XML files, stored without compression.
+const CRC_TABLE = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = bytes => { let c = 0xFFFFFFFF; for (const b of bytes) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {                     // files: [{name, text}] -> Uint8Array
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const common = [...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)];
+    const local = new Uint8Array([...u32(0x04034b50), ...common, ...name]);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...common, ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...name]));
+    parts.push(local, data); offset += local.length + data.length;
+  });
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(offset), ...u16(0)]);
+  const out = new Uint8Array(offset + cdSize + end.length); let p = 0;
+  [...parts, ...central, end].forEach(x => { out.set(x, p); p += x.length; });
+  return out;
+}
+function makeXlsx(rows) {                      // rows: array of arrays (strings / numbers) -> Blob
+  const x = v => String(v).replace(/[^\x09\x0A\x0D\x20-퟿-�\u{10000}-\u{10FFFF}]/gu, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const col = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
+  const sheet = rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) => {
+    if (v === '' || v == null) return '';
+    const ref = col(ci) + (ri + 1);
+    return typeof v === 'number' ? `<c r="${ref}"><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+  }).join('') + '</row>').join('');
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  return new Blob([zipStore([
+    { name: '[Content_Types].xml', text: xml + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
+    { name: '_rels/.rels', text: xml + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', text: xml + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', text: xml + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>' },
+    { name: 'xl/worksheets/sheet1.xml', text: xml + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheet}</sheetData></worksheet>` }
+  ])], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const KAHOOT_TIMES = [5, 10, 20, 30, 60, 90, 120, 240];
+const nearest = (list, t) => list.reduce((b, x) => Math.abs(x - t) < Math.abs(b - t) ? x : b, list[0]);
+function exportQuestions(id) {
+  const qs = qsets.find(x => x.id === id); if (!qs) return;
+  openModal(`<h3>Export "${esc(qs.title)}"</h3><p class="sub">Download the questions, then upload the file in Kahoot or Blooket.</p>
+    <div class="exp-pick">
+      <button class="gcard" data-exp="kahoot"><b>Kahoot</b><small>.xlsx file — in Kahoot: create a kahoot → <i>Add question</i> → <i>Import spreadsheet</i></small></button>
+      <button class="gcard" data-exp="blooket"><b>Blooket</b><small>.csv file — in Blooket: create a set → <i>CSV Import</i> / <i>Spreadsheet Import</i></small></button>
+    </div>
+    <div class="foot"><button class="btn ghost" data-x>Close</button></div>`);
+  $('#modal [data-x]').onclick = closeModal;
+  $('#modal [data-exp="blooket"]').onclick = () => { exportBlooket(qs); closeModal(); };
+  $('#modal [data-exp="kahoot"]').onclick = () => { exportKahoot(qs); closeModal(); };
+}
+function exportBlooket(qs) {
+  // Blooket's import template: a title row, a header row, then one question per row (answers by number).
+  const rows = [['Blooket\nImport Template'], ['Question #', 'Question Text', 'Answer 1', 'Answer 2', 'Answer 3\n(Optional)', 'Answer 4\n(Optional)', 'Time Limit (sec)\n(Max: 300 seconds)', 'Correct Answer(s)\n(Only include Answer #)']];
+  qs.questions.forEach((q, i) => rows.push([i + 1, q.question, q.options[0] || '', q.options[1] || '', q.options[2] || '', q.options[3] || '',
+    Math.min(300, Math.max(5, Number(q.timeLimit) || 20)), (q.correct || 0) + 1]));
+  downloadFile(fileSafe(qs.title) + '-blooket.csv', toCSV(rows), 'text/csv;charset=utf-8');
+  toast('Downloaded ' + qs.questions.length + ' questions for Blooket');
+}
+function exportKahoot(qs) {
+  let cut = 0; const clip = (s, n) => { s = String(s || ''); if (s.length > n) { cut++; return s.slice(0, n - 1) + '…'; } return s; };
+  // Same layout as Kahoot's own template: notes at the top, headers on row 8, questions from row 9 (column B on).
+  const aoa = [['Quiz template'], ['Exported from ClassQuiz: ' + qs.title], [], [], [], [], [],
+    ['', 'Question - max 120 characters', 'Answer 1 - max 75 characters', 'Answer 2 - max 75 characters', 'Answer 3 - max 75 characters', 'Answer 4 - max 75 characters', 'Time limit (sec) – 5, 10, 20, 30, 60, 90, 120, or 240 secs', 'Correct answer(s) - choose at least one']];
+  qs.questions.forEach((q, i) => aoa.push([i + 1, clip(q.question, 120), clip(q.options[0], 75), clip(q.options[1], 75), clip(q.options[2], 75), clip(q.options[3], 75),
+    nearest(KAHOOT_TIMES, Number(q.timeLimit) || 20), (q.correct || 0) + 1]));
+  downloadFile(fileSafe(qs.title) + '-kahoot.xlsx', makeXlsx(aoa));
+  toast(cut ? 'Downloaded for Kahoot — ' + cut + ' long bit' + (cut === 1 ? ' was' : 's were') + ' shortened to fit Kahoot’s limits' : 'Downloaded ' + qs.questions.length + ' questions for Kahoot');
+}
 
 function openProfile() {
   const p = Cloud.profile || {}; let photo = p.photo || '';
@@ -1181,6 +1286,7 @@ function renderQuestionSets() {
           <button class="iconbtn-sm ${practiceOn ? '' : 'hidden-practice'}" data-toggle-practice="${qs.id}" title="${practiceOn ? 'Hide from student practice' : 'Show in student practice'}" aria-label="${practiceOn ? 'Hide from student practice' : 'Show in student practice'}"><i class='bx ${practiceOn ? 'bxs-show' : 'bx-hide'}'></i></button>
           <button class="iconbtn-sm" data-assign="${qs.id}" title="Assign to a class" aria-label="Assign to a class"><i class='bx bx-task'></i></button>
           <button class="iconbtn-sm" data-edit="${qs.id}" title="Edit questions" aria-label="Edit questions"><i class='bx bx-edit'></i></button>
+          <button class="iconbtn-sm" data-export="${qs.id}" title="Export to Kahoot or Blooket" aria-label="Export to Kahoot or Blooket"><i class='bx bx-download'></i></button>
           <button class="iconbtn-sm danger" data-delqs="${qs.id}" title="Delete set" aria-label="Delete set"><i class='bx bx-trash'></i></button>
         </div>
       </div>
@@ -1199,6 +1305,7 @@ function renderQuestionSets() {
   list.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => assignQuiz(b.dataset.assign));
   list.querySelectorAll('[data-hmadd]').forEach(b => b.onclick = () => addHangmanClues(b.dataset.hmadd, b));
   list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editQuiz(b.dataset.edit));
+  list.querySelectorAll('[data-export]').forEach(b => b.onclick = () => exportQuestions(b.dataset.export));
   list.querySelectorAll('[data-delqs]').forEach(b => b.onclick = () => { if (!confirm('Delete this question set?')) return; qsets = qsets.filter(x => x.id !== b.dataset.delqs); saveQSets(); renderQuestionSets(); });
 }
 $('#qsToAI').onclick = () => goNav('ai');

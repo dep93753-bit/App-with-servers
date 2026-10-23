@@ -606,3 +606,10 @@ html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
 .mk-ex{font-size:13px;margin-top:4px;color:var(--dark)}
 .mk-meta{color:var(--dark-grey);display:block;margin-top:4px}
 .inst{padding-left:20px;margin:0 0 16px;line-height:1.9}
+
+/* ===== exports ===== */
+.dash-tools{display:flex;justify-content:flex-end;margin-bottom:12px}
+.dash-tools .btn{padding:7px 16px;font-size:14px}
+.exp-pick{display:grid;gap:10px;margin-bottom:16px}
+.exp-pick .gcard{text-align:left;display:block;width:100%}
+.exp-pick .gcard small{display:block;margin-top:4px}
