@@ -15,11 +15,11 @@ window.Cloud = (function () {
   const api = {
     enabled: false, uid: null, user: null, profile: null, ready: Promise.resolve(false), status: 'offline', lastError: '',
     publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop, saveDone: noop,
-    isDev: () => false, trackVisit: noop, trackPlay: noop, trackAI: noop, devStats: async () => [],
+    isDev: () => false, addPost: noop, deletePost: noop, watchPosts: off, trackVisit: noop, trackPlay: noop, trackAI: noop, devStats: async () => [],
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=19'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=21'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -167,10 +167,34 @@ window.Cloud = (function () {
     }); W();
   });
 
+  // Students' wall posts are their own documents (the teacher's posts are part of the class itself), so each
+  // post is saved under the account that wrote it. Errors here go to the caller, not the status badge.
+  api.addPost = async (code, p) => {
+    if (!(await api.ready)) throw new Error('not signed in');
+    const ref = await classRef(code).collection('posts').add({ uid: api.uid, sid: p.sid, name: String(p.name || 'Student').slice(0, 30), text: String(p.text).slice(0, 500), time: Date.now(), at: ts() });
+    W(); return ref.id;
+  };
+  api.deletePost = async (code, id) => { if (!(await api.ready)) return; await classRef(code).collection('posts').doc(id).delete(); W(); };
+  api.watchPosts = (code, cb) => {                   // newest 50 posts; retries a little while a new student's join finishes
+    let unsub = () => {}, dead = false, tries = 0; const first = firstLoad();
+    const start = () => { if (dead) return first();
+      unsub = classRef(code).collection('posts').orderBy('time', 'desc').limit(50).onSnapshot(s => {
+        first(); if (!s.metadata.fromCache) R(s.docChanges().length);
+        cb(s.docs.map(d => ({ ...d.data(), at: null, id: d.id })));
+      }, e => { first(); if (e.code === 'permission-denied' && ++tries < 4) setTimeout(start, 3000); else console.warn('[Cloud] wall:', e.code); });
+    };
+    api.ready.then(ok => { if (ok) start(); else first(); });
+    return () => { dead = true; unsub(); };
+  };
+
+  // While the loading screen is up, it waits for each listener's first data (max 5 s each).
+  const firstLoad = () => { let fin = () => {}; const p = new Promise(r => { fin = r; }); if (window.Splash) Splash.wait(p); return () => fin(); };
   const watch = (getRef, map) => (code, cb) => {
-    let unsub = () => {}, dead = false;
-    api.ready.then(ok => { if (!ok || dead) return;
-      unsub = getRef(code).onSnapshot(s => { if (!s.metadata.fromCache) R(s.docChanges ? s.docChanges().length : 1); cb(map(s)); }, e => { console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); }); });
+    let unsub = () => {}, dead = false; const first = firstLoad();
+    api.ready.then(ok => { if (!ok || dead) return first();
+      unsub = getRef(code).onSnapshot(s => {
+        first(); if (!s.metadata.fromCache) R(s.docChanges ? s.docChanges().length : 1); cb(map(s));
+      }, e => { first(); console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); }); });
     return () => { dead = true; unsub(); };
   };
   api.watchClass    = watch(classRef, s => (s.exists ? s.data() : null));
@@ -182,18 +206,18 @@ window.Cloud = (function () {
     let cache = []; try { cache = JSON.parse(L.getItem(KEY) || '[]'); } catch (e) {}
     const since = cache.reduce((m, d) => Math.max(m, d._at || 0), 0);
     if (cache.length) setTimeout(() => cb(cache), 0);
-    let unsub = () => {}, dead = false;
-    api.ready.then(ok => { if (!ok || dead) return;
+    let unsub = () => {}, dead = false; const first = firstLoad();
+    api.ready.then(ok => { if (!ok || dead) return first();
       let q = classRef(code).collection('scores');
       if (since) q = q.where('at', '>=', firebase.firestore.Timestamp.fromMillis(since));
       unsub = q.onSnapshot(s => {
-        if (!s.metadata.fromCache) R(s.docChanges().length);
+        first(); if (!s.metadata.fromCache) R(s.docChanges().length);
         const byId = new Map(cache.map(d => [d._id, d]));
         s.docs.forEach(d => { const x = d.data(); byId.set(d.id, { ...x, at: null, _id: d.id, _at: x.at && x.at.toMillis ? x.at.toMillis() : 0 }); });
         cache = [...byId.values()];
         try { L.setItem(KEY, JSON.stringify(cache)); } catch (e) {}   // too big for this device: it just downloads them all next time
         cb(cache);
-      }, e => { console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); });
+      }, e => { first(); console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); });
     });
     return () => { dead = true; unsub(); };
   };

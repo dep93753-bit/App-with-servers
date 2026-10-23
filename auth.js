@@ -79,6 +79,7 @@ window.Gate = (function () {
     hide() { gate.hidden = true; },
     show(mode, arg) {
       gate.hidden = false;
+      if (window.Splash) Splash.ready();             // the sign-in screen is ready: let the loading screen go
       box.hidden = mode !== 'in'; setup.hidden = mode !== 'setup'; $('agRetry').hidden = mode !== 'retry';
       if (mode === 'setup') { $('agDisp').value = (arg && arg.displayName) || window.__pendingName || ''; paintSetupAvatar(); }
       else if (mode === 'retry') $('agRetryMsg').textContent = arg || '';

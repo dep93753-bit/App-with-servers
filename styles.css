@@ -645,8 +645,26 @@ body:not(.dev-on) .seesaw.rock .ss-plank{animation-name:ss-tip-left}
 
 /* ===== loading screen: the name writes itself out (worm lettering) ===== */
 #splash{position:fixed;inset:0;z-index:100000;background:#F9F9F9;display:flex;align-items:center;justify-content:center;transition:opacity .45s ease-out;cursor:pointer}
+#splash{flex-direction:column;gap:22px}
 #splash.out{opacity:0;pointer-events:none}
+.splash-msg{margin:0;color:var(--dark-grey);font:500 14px var(--poppins);opacity:0;transition:opacity .4s}
+#splash.slow .splash-msg{opacity:1;animation:splash-pulse 1.4s ease-in-out infinite}
+@keyframes splash-pulse{50%{opacity:.45}}
 .worm{width:min(82vw,560px);height:auto;overflow:visible}
 .worm path{fill:none;stroke:#2F65C8;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 1;stroke-dashoffset:1;opacity:0;animation:worm-write .5s cubic-bezier(.45,0,.25,1) forwards}
 @keyframes worm-write{0%{stroke-dashoffset:1;opacity:1}100%{stroke-dashoffset:0;opacity:1}}
 @media (prefers-reduced-motion:reduce){.worm path{animation:none;stroke-dashoffset:0;opacity:1}}
+
+/* the name next to the seesaw, in the same worm lettering as the loading screen */
+.wordmark{height:20px;width:auto;overflow:visible;vertical-align:middle}
+.wordmark path{fill:none;stroke:currentColor;stroke-width:20;stroke-linecap:round;stroke-linejoin:round}
+#content nav .nav-brand .wordmark{height:16px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ===== class wall: student posts ===== */
+.stu-av{background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700}
+.stu-composer textarea{flex:1;min-width:0;border:1px solid #ccc;border-radius:8px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical;min-height:52px;background:transparent;color:var(--dark)}
+.stu-composer textarea:focus{border-color:var(--blue);outline:none}
+.stu-post-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}
+.stu-post-row small{color:var(--dark-grey)}
+.student-post .meta .del{margin-left:auto}

@@ -505,7 +505,7 @@ function render() {
         <div class="cards"><button data-act="code"><i class='bx bx-user-plus'></i>Invite members</button><button data-act="assign"><i class='bx bx-task'></i>Assign</button><button data-act="post"><i class='bx bx-news'></i>Create post</button></div></div>`;
       body += `<h3 style="margin:8px 0 12px">Posts wall<span class="badge">${c.settings.studentsCanPost ? 'Students can post' : 'Only you can post'}</span></h3>`;
       if (!c.settings.wallVisible) body += `<div class="card"><div class="wall-off">The wall is hidden from students. Only you can see it.</div></div>`;
-      body += listHtml(c.posts, 'posts', 'No posts yet. Write the first one above.');
+      body += wallHtml(c, 'teacher');
     } else if (tab === 'dashboard') {
       body = `<div class="dash-tools"><button class="btn ghost" id="exportGrades"><i class='bx bx-download'></i> Export grades</button></div>` + dashHtml(c);
     } else {
@@ -549,6 +549,7 @@ $('#classView').addEventListener('click', e => {
   if (e.target.closest('#joinBtn')) return showCode();
   if (e.target.closest('#gear')) return showSettings();
   const pq = e.target.closest('[data-play-quiz]'); if (pq) { const qs = getQuestionSets().find(x => x.id === pq.dataset.playQuiz); openGame(pq.dataset.game || 'battleship', qs || null); return; }
+  const dw = e.target.closest('[data-delwall]'); if (dw) return deleteWallPost(cur(), dw.dataset.delwall);
   const d = e.target.closest('[data-del]'); if (d) { const [k, id] = d.dataset.del.split(':'); const c = cur(); c[k] = c[k].filter(x => String(x.id) !== id); save(); return render(); }
   const a = e.target.closest('[data-act]'); if (!a) return;
   ({ post: focusPost, share: showCode, assign: addAssignment, code: showCode })[a.dataset.act]();
@@ -1144,8 +1145,58 @@ function renderStudentHome(c, scores) {
 function renderStudentPosts(c) {
   const body = document.getElementById('studentTabBody');
   if (!(c.settings && c.settings.wallVisible !== false)) { body.innerHTML = `<div class="card"><div class="student-empty">Your teacher has hidden the posts wall for now.</div></div>`; return; }
-  if (!c.posts.length) { body.innerHTML = `<div class="card"><div class="student-empty">No posts yet.</div></div>`; return; }
-  body.innerHTML = `<div class="card">${c.posts.map(p => `<div class="student-post"><div class="meta">${tAv(teacherOf(c))}<div><b>${esc(teacherOf(c).name)}</b><small>${fmt(p.time)}</small></div></div><p>${esc(p.text)}</p></div>`).join('')}</div>`;
+  const canPost = !!(c.settings && c.settings.studentsCanPost);
+  body.innerHTML = (canPost ? `<div class="card stu-composer"><div class="composer"><div class="avatar stu-av">${esc(((studentIdentity.name || 'S').trim()[0] || 'S').toUpperCase())}</div>
+      <textarea id="stuPostBox" maxlength="500" placeholder="Write something to your class…" aria-label="Write a post"></textarea></div>
+      <div class="stu-post-row"><small>Everyone in the class and your teacher can see this.</small><button class="btn" id="stuPostBtn">Post</button></div></div>` : '')
+    + wallHtml(c, 'student');
+  if (canPost) {
+    const box = $('#stuPostBox');
+    $('#stuPostBtn').onclick = () => studentPost(c, box.value);
+    box.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); studentPost(c, box.value); } });
+  }
+  body.querySelectorAll('[data-delwall]').forEach(b => b.onclick = () => deleteWallPost(c, b.dataset.delwall));
+}
+
+/* ===================== Class wall: teacher posts + student posts ===================== */
+// Teacher posts live on the class (c.posts); student posts are their own cloud documents (c.wall), each
+// saved under the account that wrote it, so every post shows its real author.
+function wallItems(c) {
+  return (c.posts || []).map(p => ({ ...p, byTeacher: true }))
+    .concat((c.wall || []).map(p => ({ ...p, byTeacher: false })))
+    .sort((a, b) => (b.time || 0) - (a.time || 0));
+}
+function wallHtml(c, who) {
+  const items = wallItems(c), cls = who === 'teacher' ? 'post' : 'student-post';
+  if (!items.length) return `<div class="card"><div class="${who === 'teacher' ? 'empty' : 'student-empty'}">${who === 'teacher' ? 'No posts yet. Write the first one above.' : 'No posts yet.'}</div></div>`;
+  return `<div class="card">${items.map(p => {
+    if (p.byTeacher) {
+      const t = teacherOf(c);
+      return `<div class="${cls}"><div class="meta">${tAv(t)}<div><b>${esc(t.name)}</b><small>${fmt(p.time)} · teacher</small></div>
+        ${who === 'teacher' ? `<button class="del" data-del="posts:${p.id}" aria-label="Delete post"><i class='bx bx-trash'></i></button>` : ''}</div><p>${esc(p.text)}</p></div>`;
+    }
+    const name = who === 'teacher' ? studentName(c, { id: p.sid, name: p.name }) : (p.name || 'Student');
+    const mine = who === 'student' && p.sid === studentIdentity.id;
+    return `<div class="${cls}"><div class="meta"><div class="avatar stu-av">${esc(((name || 'S').trim()[0] || 'S').toUpperCase())}</div><div><b>${esc(name || 'Student')}${mine ? ' <small>(you)</small>' : ''}</b><small>${fmt(p.time)} · student</small></div>
+      ${who === 'teacher' || mine ? `<button class="del" data-delwall="${esc(p.id)}" aria-label="Delete post"><i class='bx bx-trash'></i></button>` : ''}</div><p>${esc(p.text)}</p></div>`;
+  }).join('')}</div>`;
+}
+async function studentPost(c, text) {
+  text = String(text || '').trim(); if (!text) return;
+  const p = { id: 'local_' + Date.now(), sid: studentIdentity.id, name: studentIdentity.name || 'Student', text: text.slice(0, 500), time: Date.now() };
+  c.wall = [p].concat(c.wall || []); save(); renderStudentClass();
+  if (!(c.remote && c.code)) return;                 // a class on this device only (no cloud)
+  try { const id = await Cloud.addPost(c.code, p); if (id) p.id = id; }
+  catch (e) {
+    c.wall = (c.wall || []).filter(x => x !== p); save(); renderStudentClass();
+    toast(e.code === 'permission-denied' ? 'Your teacher has turned off student posts' : 'Couldn’t post. Check your internet and try again');
+  }
+}
+function deleteWallPost(c, id) {
+  if (!c || !confirm('Delete this post?')) return;
+  c.wall = (c.wall || []).filter(p => String(p.id) !== String(id)); save();
+  if (c.code && !String(id).startsWith('local_')) Cloud.deletePost(c.code, id).catch(e => { console.warn('Delete post failed', e); toast('Couldn’t delete that post'); });
+  if (uiMode === 'student') renderStudentClass(); else render();
 }
 
 function studentTodo(c) {                   // [{a, done}] with to-do first (soonest due first), then done
@@ -2186,6 +2237,7 @@ function cloudRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(
 function cloudWatchTeacher() {            // pull students + scores from students' devices into the teacher's screens
   classes.filter(c => !c.remote).forEach(c => {
     if (cloudWatched.has(c.id)) return; cloudWatched.add(c.id);
+    Cloud.watchPosts(c.code, list => { c.wall = list; cloudRefresh(); });
     Cloud.watchStudents(c.code, list => {
       c.students = c.students || []; let changed = false;
       list.forEach(st => {
@@ -2233,6 +2285,10 @@ function cloudWatchStudent() {            // keep every joined class's posts / a
     const c = classes.find(x => x.id === id);
     if (!c || !c.remote || studentWatched.has(c.code)) return;
     studentWatched.add(c.code);
+    Cloud.watchPosts(c.code, list => {
+      c.wall = list;
+      if (uiMode === 'student' && studentSession && studentSession.classId === c.id && studentTab === 'posts' && !studentJoinOpen) renderStudentClass();
+    });
     Cloud.watchClass(c.code, d => {
       if (!d) return; applyRemoteClass(d);
       if (uiMode !== 'student') return;
@@ -2263,3 +2319,4 @@ Cloud.trackVisit({                           // one usage record per account (co
   classes: classes.filter(c => !c.remote).length,
   sets: qsets.filter(q => !q._remote && q.id !== 'qs_preset').length
 });
+if (window.Splash) Splash.ready();         // the app is on screen; the loading screen closes once first data is in

@@ -278,7 +278,60 @@ test.describe('loading screen', () => {
     await expect(page.locator('#splash .worm')).toBeVisible();
     await expect(page.locator('#splash .worm path')).toHaveCount(9);            // one stroke per letter
     // letters start hidden and finish fully drawn
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('#splash .worm path:last-child')).strokeDashoffset), { timeout: 3000 }).toMatch(/^0(px)?$/);
+    await page.waitForFunction(() => {                                     // checked every frame, so it can't miss it
+      const el = document.querySelector('#splash .worm path:last-child');
+      return el && /^0(px)?$/.test(getComputedStyle(el).strokeDashoffset);
+    }, null, { polling: 'raf', timeout: 3000 });
     await expect(page.locator('#splash')).toHaveCount(0, { timeout: 5000 });
   });
+
+  test('the loading screen stays up while account data is still loading', async ({ page }) => {
+    await page.route(/gstatic\.com\/firebasejs|js\.puter\.com|cdn\.jsdelivr\.net/, r => r.abort());
+    // pretend the first class data takes 3.5 s to arrive
+    await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => window.Splash.wait(new Promise(r => setTimeout(r, 3500)))));
+    await page.goto('/index.html');
+    await page.waitForTimeout(2900);                                      // name finished writing long ago
+    await expect(page.locator('#splash')).toHaveCount(1);                 // ...but still waiting for data
+    await expect(page.locator('#splash.slow .splash-msg')).toBeVisible(); // "Loading your account…"
+    await expect(page.locator('#splash')).toHaveCount(0, { timeout: 4000 });
+  });
+});
+
+test('wall: a student posts under their own name, not the teacher\'s', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await page.fill('#postBox', 'Welcome everyone');                   // teacher post
+  await page.press('#postBox', 'Enter');
+  await becomeStudentAndJoin(page);
+  await page.evaluate(() => { studentIdentity.name = 'Ava'; });
+  await page.click('[data-student-tab="posts"]');
+  await page.fill('#stuPostBox', 'Hi class, Ava here');
+  await page.click('#stuPostBtn');
+  const posts = page.locator('#studentTabBody .student-post');
+  await expect(posts).toHaveCount(2);
+  await expect(posts.first()).toContainText('Ava');
+  await expect(posts.first()).toContainText('Hi class, Ava here');
+  await expect(posts.first()).toContainText('(you)');
+  await expect(posts.nth(1)).toContainText('Welcome everyone');
+  await expect(posts.nth(1)).toContainText('teacher');
+  // the teacher sees the student's name on the student's post
+  await page.evaluate(() => { uiMode = 'teacher'; tab = 'activity'; route(); render(); });
+  const tposts = page.locator('#classView .post');
+  await expect(tposts.filter({ hasText: 'Hi class, Ava here' })).toContainText('Ava');
+  await expect(tposts.filter({ hasText: 'Hi class, Ava here' })).not.toContainText('Teacher');
+  expect(errors).toEqual([]);
+});
+
+test('wall: no post box when the teacher turns student posts off; students can delete their own post', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await becomeStudentAndJoin(page);
+  await page.click('[data-student-tab="posts"]');
+  await page.fill('#stuPostBox', 'oops');
+  await page.click('#stuPostBtn');
+  await page.locator('#studentTabBody [data-delwall]').first().click();      // confirm() is auto-accepted
+  await expect(page.locator('#studentTabBody .student-post')).toHaveCount(0);
+  await page.evaluate(() => { classes[0].settings.studentsCanPost = false; save(); renderStudentClass(); });
+  await expect(page.locator('#stuPostBox')).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
