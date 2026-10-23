@@ -1855,7 +1855,10 @@ document.getElementById('authScrim').addEventListener('click', e => { if (e.targ
 
 // Only a real Puter account (signed in with Google or email) can use AI — guest sessions have no credits.
 const isRealPuterUser = u => !!u && (u.is_temp === false || (u.is_temp === undefined && !!u.email));
+// Puter.js loads in the background (deferred), so wait for the page to finish loading before deciding it's missing.
+const puterLoaded = () => window.puter || document.readyState === 'complete' ? Promise.resolve() : new Promise(r => window.addEventListener('load', r, { once: true }));
 async function checkPuter() {            // quiet check: never opens a window or popup
+  await puterLoaded();
   if (!window.puter || !puter.auth) { authState = 'failed'; authLastReason = 'Puter.js not loaded.'; updateAuthBadge(); return false; }
   try {
     if (await puter.auth.isSignedIn()) {

@@ -295,6 +295,22 @@ test.describe('loading screen', () => {
     await expect(page.locator('#splash.slow .splash-msg')).toBeVisible(); // "Loading your account…"
     await expect(page.locator('#splash')).toHaveCount(0, { timeout: 4000 });
   });
+
+  test('a slow AI script does not leave a blank white screen', async ({ page }) => {
+    await page.route(/gstatic\.com\/firebasejs|cdn\.jsdelivr\.net/, r => r.abort());
+    await page.route(/js\.puter\.com/, () => {});                        // never answers (blocked school wifi)
+    page.goto('/index.html').catch(() => {});
+    await expect(page.locator('#splash .worm')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('if the server never answers, the loading screen says so with a Reload button', async ({ page }) => {
+    test.setTimeout(30000);
+    await page.route(/js\.puter\.com|cdn\.jsdelivr\.net/, r => r.abort());
+    await page.route(/gstatic\.com\/firebasejs/, () => {});              // Firebase never arrives
+    page.goto('/index.html').catch(() => {});
+    await expect(page.locator('#splash .splash-retry')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#splash .splash-msg')).toContainText('Can’t reach QuizSpill');
+  });
 });
 
 test('wall: a student posts under their own name, not the teacher\'s', async ({ page }) => {
