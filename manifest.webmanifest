@@ -1,6 +1,6 @@
 {
-  "name": "Recess",
-  "short_name": "Recess",
+  "name": "QuizSpill",
+  "short_name": "QuizSpill",
   "description": "Classroom quizzes and quiz-powered games for teachers and students.",
   "start_url": "./index.html",
   "scope": "./",

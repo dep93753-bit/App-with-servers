@@ -1,4 +1,4 @@
-/* Recess service worker: lets the app be installed on a phone and still open with a weak connection.
+/* QuizSpill service worker: lets the app be installed on a phone and still open with a weak connection.
    Always tries the network first (so updates show up right away) and only falls back to the saved copy. */
 const CACHE = 'classquiz-v1';
 
