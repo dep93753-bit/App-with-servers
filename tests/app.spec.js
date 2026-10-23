@@ -147,3 +147,53 @@ test('the app can be installed (manifest, icons, service worker)', async ({ page
   await expect(page.locator('#modal .inst li')).toHaveCount(3);
   expect(errors).toEqual([]);
 });
+
+test('teacher exports grades as a spreadsheet', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await addStudents(page, [{ id: 's1', name: 'Ava' }, { id: 's2', name: '=Bob' }]);
+  await page.click('#classView [data-tab="assignments"]');
+  await page.click('#assignQuizBtn');
+  await page.click('#qsPick [data-qsid="qs_preset"]');
+  await page.click('#modal [data-ag=""]');
+  // Ava finishes the quiz with 2 of 3 right (her scores are stored the way the cloud delivers them)
+  await page.evaluate(() => {
+    const c = classes[0];
+    cloudScores[c.id] = [{ sid: 's1', name: 'Ava', game: 'tetris', quizId: 'qs_preset', won: true, quit: false, score: 9, time: Date.now() + 1000, answers: [{ qIdx: 0, correct: true }, { qIdx: 1, correct: true }, { qIdx: 2, correct: false }] }];
+  });
+  await page.click('#classView [data-tab="dashboard"]');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#exportGrades')]);
+  expect(download.suggestedFilename()).toMatch(/^Period-3-grades-.*\.csv$/);
+  const text = require('fs').readFileSync(await download.path(), 'utf8').replace(/^﻿/, '');
+  const lines = text.split('\r\n');
+  expect(lines[0]).toContain('"Student","Games played","Questions answered","Correct","% correct"');
+  expect(lines[0]).toContain('Preset Quiz');
+  expect(lines[1]).toMatch(/^"Ava","1","3","2","67%",".*","67%"$/);
+  expect(lines[2]).toMatch(/^"'=Bob","0","0","0","","","Not done"$/);   // formula-looking names are made safe
+  expect(errors).toEqual([]);
+});
+
+test('questions export for Blooket (.csv) and Kahoot (.xlsx)', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => goNav('questions'));
+  await page.click('[data-export="qs_preset"]');
+  const [blooket] = await Promise.all([page.waitForEvent('download'), page.click('#modal [data-exp="blooket"]')]);
+  expect(blooket.suggestedFilename()).toBe('Preset-Quiz-blooket.csv');
+  const csv = require('fs').readFileSync(await blooket.path(), 'utf8').replace(/^﻿/, '').split('\r\n');
+  const preset = await page.evaluate(() => PRESET_QUESTIONS);
+  expect(csv[1]).toContain('"Question #","Question Text","Answer 1"');
+  expect(csv.length).toBe(preset.length + 2);
+  expect(csv[2]).toContain(`"${preset[0].question.replace(/"/g, '""')}"`);
+  expect(csv[2].endsWith(`"${preset[0].correct + 1}"`)).toBe(true);
+
+  await page.click('[data-export="qs_preset"]');
+  const [kahoot] = await Promise.all([page.waitForEvent('download'), page.click('#modal [data-exp="kahoot"]')]);
+  expect(kahoot.suggestedFilename()).toBe('Preset-Quiz-kahoot.xlsx');
+  const bytes = require('fs').readFileSync(await kahoot.path());
+  expect(bytes.subarray(0, 2).toString()).toBe('PK');                       // it's a zip, like every .xlsx
+  const raw = bytes.toString('utf8');
+  expect(raw).toContain('xl/worksheets/sheet1.xml');
+  expect(raw).toContain('Question - max 120 characters');
+  expect(raw).toContain('<c r="A9"><v>1</v></c>');                         // first question on row 9
+  expect(errors).toEqual([]);
+});
