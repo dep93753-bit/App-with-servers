@@ -110,3 +110,40 @@ test('a crash shows the friendly message, not a red debug bar', async ({ page })
   await page.addScriptTag({ url: '/boom.js' });
   await expect(page.locator('#__errbar')).toContainText('Something went wrong');
 });
+
+test('student reviews mistakes and a right answer in a review game clears one', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await becomeStudentAndJoin(page);
+  await page.evaluate(() => {
+    const cid = classes[0].id;
+    recordScore(cid, 'tetris', 'qs_preset', false, 3, [{ qIdx: 0, correct: false }, { qIdx: 1, correct: false }, { qIdx: 2, correct: true }], false);
+  });
+  await page.click('[data-student-tab="mistakes"]');
+  await expect(page.locator('.mk-item')).toHaveCount(2);
+  await page.click('#mkPractice');
+  await page.click('#modal [data-g="tetris"]');
+  await expect(page.locator('#battleWrap')).toHaveClass(/show/);
+  const quizId = await page.evaluate(() => gameRun.quizId);
+  expect(quizId).toMatch(/^review:/);
+  await page.evaluate(() => gameRun.answers.push({ qIdx: 0, correct: true }));
+  await page.click('#battleClose');
+  await expect(page.locator('.mk-item')).toHaveCount(1);
+  // practice games aren't counted as scores
+  const games = await page.evaluate(() => getStudentScores(classes[0].id, studentIdentity.id).length);
+  expect(games).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('the app can be installed (manifest, icons, service worker)', async ({ page, request }) => {
+  const errors = await openApp(page);
+  const href = await page.getAttribute('link[rel="manifest"]', 'href');
+  const manifest = await (await request.get('/' + href)).json();
+  expect(manifest.display).toBe('standalone');
+  for (const icon of manifest.icons) expect((await request.get('/' + icon.src)).ok()).toBe(true);
+  expect((await request.get('/sw.js')).ok()).toBe(true);
+  await page.evaluate(() => openProfile());
+  await page.click('#pfInstall');
+  await expect(page.locator('#modal .inst li')).toHaveCount(3);
+  expect(errors).toEqual([]);
+});

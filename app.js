@@ -586,6 +586,23 @@ function paintAvatar() {
   const p = Cloud.profile || {};
   $('#profileIcon img').src = p.photo || ('data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" fill="#2F65C8"/><text x="36" y="49" font-size="34" font-family="Arial" font-weight="700" text-anchor="middle" fill="#fff">' + esc(((p.displayName || '?').trim().charAt(0) || '?').toUpperCase()) + '</text></svg>'));
 }
+// Install as an app: Chrome/Edge/Android give us a prompt; iPhone needs Share > Add to Home Screen.
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+addEventListener('appinstalled', () => { installPrompt = null; toast('ClassQuiz is installed'); });
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function installApp() {
+  if (installPrompt) { const p = installPrompt; installPrompt = null; closeModal(); p.prompt(); return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  openModal(`<h3>Install ClassQuiz</h3><p class="sub">Add it to your home screen so it opens like an app.</p>
+    <ol class="inst">${ios
+      ? `<li>Tap the <b>Share</b> button <i class='bx bx-share' aria-hidden="true"></i> at the bottom of Safari.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li>`
+      : `<li>Open your browser's menu (<b>⋮</b> or <b>…</b>).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Confirm, then open ClassQuiz from your home screen.</li>`}</ol>
+    <div class="foot"><button class="btn" data-x>Got it</button></div>`);
+  $('#modal [data-x]').onclick = closeModal;
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker', e));
+
 function openProfile() {
   const p = Cloud.profile || {}; let photo = p.photo || '';
   const oldRole = p.role === 'student' ? 'student' : 'teacher'; let role = oldRole;
@@ -596,6 +613,7 @@ function openProfile() {
   <div class="role-pick"><button type="button" data-role="teacher"><i class='bx bxs-graduation'></i> Teacher</button><button type="button" data-role="student"><i class='bx bxs-user'></i> Student</button></div>
   <small class="pf-note" id="pfRoleNote"></small>
   <button type="button" class="btn ghost" id="pfTour" style="width:100%;margin-bottom:12px"><i class='bx bx-map-alt'></i> Show me around</button>
+  ${isInstalled() ? '' : `<button type="button" class="btn ghost" id="pfInstall" style="width:100%;margin-bottom:12px"><i class='bx bx-mobile'></i> Install on this device</button>`}
   <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" id="pfSave">Save</button></div>`);
   const paintRole = () => {
     document.querySelectorAll('#modal [data-role]').forEach(b => b.classList.toggle('on', b.dataset.role === role));
@@ -607,6 +625,7 @@ function openProfile() {
   show();
   $('#pfPick').onclick = () => $('#pfFile').click();
   $('#pfTour').onclick = () => { closeModal(); startTour(); };
+  if ($('#pfInstall')) $('#pfInstall').onclick = installApp;
   $('#pfFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { photo = await Gate.resize(f); show(); } catch (er) { toast(er.message); } };
   $('#pfClear').onclick = () => { photo = ''; $('#pfImg').src = ''; $('#pfImg').removeAttribute('src'); };
   $('#modal [data-x]').onclick = closeModal;
@@ -762,6 +781,18 @@ function leaveStudentClass() {
 document.getElementById('studentLeaveBtn').addEventListener('click', e => { e.preventDefault(); leaveStudentClass(); });
 
 let gameRun = null;        // the game that's open: {game, quizId, answers answered since its last finished round}
+// "Review my mistakes" practice: a set made of missed questions (id starts with review:). Its results aren't
+// scores; a right answer just clears that question from the student's mistake list (kept on this device).
+const isReviewRun = r => r && String(r.quizId).startsWith('review:');
+const fixedKey = cid => 'adminhub_fixed_' + cid;
+function clearMistakes(r, answers) {
+  if (!studentSession) return 0;
+  const qs = reviewSet; let fixed = {}, n = 0;
+  try { fixed = JSON.parse(localStorage.getItem(fixedKey(studentSession.classId)) || '{}'); } catch (e) {}
+  answers.forEach(a => { const q = qs && qs.questions[a.qIdx]; if (a.correct && q && q.src) { fixed[q.src] = Date.now(); n++; } });
+  try { localStorage.setItem(fixedKey(studentSession.classId), JSON.stringify(fixed)); } catch (e) {}
+  return n;
+}
 window.addEventListener('message', e => {
   const d = e.data;
   if (!d || typeof d !== 'object' || !gameRun || e.source !== $('#battleFrame').contentWindow) return;
@@ -769,6 +800,7 @@ window.addEventListener('message', e => {
   if (d.type !== 'gameEnd') return;
   gameRun.answers = [];     // this round gets saved in full just below
   if (uiMode !== 'student' || !studentSession) return;
+  if (isReviewRun(gameRun)) { clearMistakes(gameRun, d.answers || []); return; }
   recordScore(studentSession.classId, d.game || 'unknown', d.quizId || 'preset', !!d.won, d.score, d.answers || []);
 });
 
@@ -789,6 +821,7 @@ function renderStudentTabs() {
 function finishGameRun() { // closing a game before the end still saves the questions answered so far
   const r = gameRun; gameRun = null;
   if (!r || !r.answers.length || uiMode !== 'student' || !studentSession) return;
+  if (isReviewRun(r)) { clearMistakes(r, r.answers); if (studentTab === 'mistakes') renderStudentClass(); return; }
   recordScore(studentSession.classId, r.game, r.quizId, false, 0, r.answers, true);
   toast('Saved ' + r.answers.length + ' answer' + (r.answers.length === 1 ? '' : 's') + ' from that game');
   if (studentTab === 'scores' || studentTab === 'leaderboard') renderStudentClass();
@@ -819,6 +852,7 @@ function renderStudentClass() {
     { id: 'posts', label: 'Posts', icon: 'bxs-message-rounded' },
     { id: 'assignments', label: 'Assignments', icon: 'bx-task' },
     { id: 'practice', label: 'Practice', icon: 'bxs-book' },
+    { id: 'mistakes', label: 'Mistakes', icon: 'bx-revision' },
     { id: 'scores', label: 'My scores', icon: 'bxs-bar-chart-alt-2' }
   ];
   if (c.settings && c.settings.leaderboard) tabs.splice(4, 0, { id: 'leaderboard', label: 'Leaderboard', icon: 'bxs-trophy' });
@@ -844,6 +878,7 @@ function renderStudentClass() {
   else if (activeTab === 'posts') renderStudentPosts(c);
   else if (activeTab === 'assignments') renderStudentAssignments(c);
   else if (activeTab === 'practice') renderStudentPractice(c);
+  else if (activeTab === 'mistakes') renderStudentMistakes(c);
   else if (activeTab === 'scores') renderStudentScores(c, scores);
   else if (activeTab === 'leaderboard') renderStudentLeaderboard(c);
 }
@@ -992,6 +1027,40 @@ function renderStudentScores(c, scores) {
         <div class="sr-score">${s.score || 0}</div>
       </div>`).join('')}
     </div>`;
+}
+
+// Questions this student got wrong the last time they saw them (and hasn't fixed in a review game since).
+let reviewSet = null;
+function studentMistakes(c) {
+  const me = studentIdentity.id, latest = {}, misses = {};
+  let fixed = {}; try { fixed = JSON.parse(localStorage.getItem(fixedKey(c.id)) || '{}'); } catch (e) {}
+  getStudentScores(c.id, me).forEach(s => (s.answers || []).forEach(a => {      // newest game first
+    if (typeof a.qIdx !== 'number') return;
+    const key = s.quizId + '|' + a.qIdx;
+    if (!(key in latest)) latest[key] = { correct: a.correct, time: s.time, quizId: s.quizId, qIdx: a.qIdx };
+    if (!a.correct) misses[key] = (misses[key] || 0) + 1;
+  }));
+  return Object.entries(latest).filter(([k, v]) => !v.correct && !(fixed[k] > v.time)).map(([k, v]) => {
+    const set = v.quizId === 'preset' ? { title: 'Preset Quiz', questions: PRESET_QUESTIONS } : qsets.find(x => x.id === v.quizId);
+    const q = set && set.questions[v.qIdx];
+    return q ? { key: k, q, set: set.title, misses: misses[k] || 1, time: v.time } : null;
+  }).filter(Boolean).sort((a, b) => b.misses - a.misses || b.time - a.time);
+}
+function renderStudentMistakes(c) {
+  const body = document.getElementById('studentTabBody'), list = studentMistakes(c);
+  if (!list.length) { body.innerHTML = `<div class="card"><div class="student-empty"><i class='bx bx-check-circle' style="font-size:36px;color:#26890c"></i><br>No mistakes to review. Nice work!<br><small>Questions you get wrong in games show up here.</small></div></div>`; return; }
+  body.innerHTML = `<div class="card mk-head"><div><b>${list.length} question${list.length === 1 ? '' : 's'} to review</b><small>Get one right in a review game and it leaves this list.</small></div>
+      <button class="btn" id="mkPractice"><i class='bx bxs-joystick'></i> Practice these</button></div>
+    <div class="card">${list.map(m => `<div class="mk-item">
+      <div class="mk-q">${esc(m.q.question)}</div>
+      <div class="mk-a"><i class='bx bx-check'></i> ${esc(m.q.options[m.q.correct] || '')}</div>
+      ${m.q.explanation ? `<div class="mk-ex">${esc(m.q.explanation)}</div>` : ''}
+      <small class="mk-meta">${esc(m.set)} · missed ${m.misses} time${m.misses === 1 ? '' : 's'}</small>
+    </div>`).join('')}</div>`;
+  $('#mkPractice').onclick = () => {
+    reviewSet = { id: 'review:' + c.id, title: 'My mistakes', questions: list.slice(0, 20).map(m => ({ ...m.q, src: m.key })) };
+    openGamePicker(reviewSet.id, reviewSet);
+  };
 }
 
 function wireStudentBodyHandlers() {
@@ -1462,12 +1531,12 @@ const GAMES = [
 ];
 const GAME_DESC = { battleship: 'Sink the enemy fleet', bubble: 'Match and pop bubbles', asteroids: 'Blast the space rocks', tetris: 'Stack blocks, clear lines', blockblast: 'Pop same-color groups', match3: 'Swap tiles to match 3', checkers: 'Jump and capture the robot', connect4: 'Get four in a row', hangman: 'Guess the word from a clue' };
 const gameBtns = (attr, id) => `<button class="playbtn browse" data-browse="${id}"><i class='bx bxs-joystick'></i> Browse games</button>`;
-function openGamePicker(quizId) {
+function openGamePicker(quizId, set) {
   openModal(`<h3>Pick a game</h3><p class="sub">Every game uses the same questions.</p>
     <div class="gpick">${GAMES.map(g => `<button class="gcard" data-g="${g.id}"><span class="gic" style="background:${g.color}"><i class='bx ${g.icon}'></i></span><b>${g.name}</b><small>${GAME_DESC[g.id] || ''}</small></button>`).join('')}</div>
     <div class="foot"><button class="btn ghost" data-x>Cancel</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
-  $('#modal').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { closeModal(); openGame(b.dataset.g, qsets.find(x => x.id === quizId) || null); });
+  $('#modal').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { closeModal(); openGame(b.dataset.g, set || qsets.find(x => x.id === quizId) || null); });
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-browse]'); if (b) openGamePicker(b.dataset.browse); });
 // An assignment can name its game; otherwise students pick one.

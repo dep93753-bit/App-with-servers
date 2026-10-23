@@ -594,3 +594,15 @@ html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
 /* ===== buttons press in slightly when tapped (Motion handles the rest in app.js) ===== */
 .btn,.iconbtn,.iconbtn-sm,.class-tabs button,.tabs button,.bottombar a,.bottombar button,.codechip{transition:transform .12s ease-out}
 .btn:active,.iconbtn:active,.iconbtn-sm:active,.tabs button:active,.bottombar a:active,.bottombar button:active,.codechip:active{transform:scale(.97)}
+
+/* ===== review my mistakes, install steps ===== */
+.mk-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-bottom:12px}
+.mk-head b{display:block;font-size:16px}
+.mk-head small{color:var(--dark-grey)}
+.mk-item{padding:14px 0;border-bottom:1px solid var(--grey)}
+.mk-item:last-child{border-bottom:none}
+.mk-q{font-weight:600;margin-bottom:6px;overflow-wrap:anywhere}
+.mk-a{color:#26890c;font-weight:600;display:flex;align-items:center;gap:4px}
+.mk-ex{font-size:13px;margin-top:4px;color:var(--dark)}
+.mk-meta{color:var(--dark-grey);display:block;margin-top:4px}
+.inst{padding-left:20px;margin:0 0 16px;line-height:1.9}
