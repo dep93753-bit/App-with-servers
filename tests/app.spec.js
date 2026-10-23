@@ -244,7 +244,7 @@ test('developer account: tapping the seesaw flips it and opens the developer pag
   await page.evaluate(([d0, d1]) => {
     Cloud.isDev = () => true;
     Cloud.devStats = async () => [
-      { role: 'teacher', device: 'computer', installed: false, firstSeen: Date.now() - 40 * 864e5, lastSeen: Date.now(), plays: 3, games: { tetris: 3 }, days: { [d0]: 3 }, classes: 2, sets: 4, aiQuizzes: 1 },
+      { role: 'teacher', device: 'computer', installed: false, firstSeen: Date.now() - 40 * 864e5, lastSeen: Date.now(), plays: 3, games: { tetris: 3 }, days: { [d0]: 3 }, classes: 2, sets: 4, aiQuizzes: 1, reads: { [d0]: 120 }, writes: { [d0]: 9 } },
       { role: 'student', device: 'phone', installed: true, firstSeen: Date.now() - 864e5, lastSeen: Date.now() - 864e5, plays: 6, games: { tetris: 1, hangman: 5 }, days: { [d1]: 6 } },
       { role: 'student', device: 'phone', installed: false, firstSeen: Date.now() - 60 * 864e5, lastSeen: Date.now() - 50 * 864e5, plays: 0, games: {}, days: {} }
     ];
@@ -258,6 +258,11 @@ test('developer account: tapping the seesaw flips it and opens the developer pag
   await expect(stats.filter({ hasText: 'games played' })).toContainText('9');
   await expect(stats.filter({ hasText: 'installed the app' })).toContainText('1');
   await expect(page.locator('#devView .dev-row').first()).toContainText('Hangman');
+  await expect(stats.filter({ hasText: 'reads today' })).toContainText('120');
+  await expect(stats.filter({ hasText: 'writes today' })).toContainText('9');
+  // the seesaw tips to the other side (CSS plank rotation flips sign)
+  const tilt = await page.locator('.seesaw:visible .ss-plank').first().evaluate(el => new DOMMatrix(getComputedStyle(el).transform).b);
+  expect(tilt).toBeGreaterThan(0);
   // tap again: back to normal
   await page.locator('[data-devtoggle]:visible').first().click();
   await expect(page.locator('body')).not.toHaveClass(/dev-on/);

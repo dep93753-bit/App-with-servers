@@ -723,6 +723,7 @@ function exportKahoot(qs) {
 /* ===================== Developer page (only the developer's account; tap the seesaw logo) ===================== */
 function setDev(on) {
   devOpen = on; document.body.classList.toggle('dev-on', on);
+  document.querySelectorAll('.seesaw').forEach(s => { s.classList.remove('rock'); void s.offsetWidth; s.classList.add('rock'); });   // restart the tip-over
   route(); if (on) { scrollTo(0, 0); renderDev(); }
 }
 document.querySelectorAll('[data-devtoggle]').forEach(el => el.addEventListener('click', e => {
@@ -757,7 +758,9 @@ async function renderDev() {
   const phones = list.filter(u => u.device === 'phone').length, installed = list.filter(u => u.installed).length;
   const card = (n, label) => `<div class="tstat"><b>${n}</b><small>${label}</small></div>`;
   const dayLabel = k => new Date(k + 'T12:00:00Z').toLocaleDateString([], { month: 'short', day: 'numeric' });
-  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+  const pct = (a, b) => b ? (a / b * 100 < 1 && a ? '<1' : Math.round(a / b * 100)) + '%' : '—';
+  const reads = k => sum(u => (u.reads || {})[k]), writes = k => sum(u => (u.writes || {})[k]);
+  const fmtN = n => Number(n).toLocaleString();
   box.innerHTML = head + `
     <div class="sec">Users</div>
     <div class="today">${card(list.length, 'unique accounts')}${card(active(1), 'active today')}${card(active(7), 'active this week')}${card(active(30), 'active this month')}</div>
@@ -772,6 +775,13 @@ async function renderDev() {
     <div class="today">${card(sum(u => u.classes), 'classes')}${card(sum(u => u.sets), 'question sets')}${card(sum(u => u.aiQuizzes), 'AI quizzes made')}${card(teachers ? (sum(u => u.classes) / teachers).toFixed(1) : '—', 'classes per teacher')}</div>
     <div class="sec">Devices</div>
     <div class="today">${card(phones, 'on phones / tablets')}${card(list.length - phones, 'on computers')}${card(installed, 'installed the app')}${card(pct(installed, list.length), 'install rate')}</div>
+    <div class="sec">Server (Firebase) reads & writes</div>
+    <div class="today">${card(fmtN(reads(today)), 'reads today')}${card(pct(reads(today), 50000), 'of free daily reads')}${card(fmtN(writes(today)), 'writes today')}${card(pct(writes(today), 20000), 'of free daily writes')}</div>
+    <div class="today">${card(fmtN(days7.reduce((n, k) => n + reads(k), 0)), 'reads this week')}${card(fmtN(days7.reduce((n, k) => n + writes(k), 0)), 'writes this week')}${card(active(1) ? Math.round(reads(today) / active(1)) : '—', 'reads per active account today')}${card(active(1) ? Math.round(writes(today) / active(1)) : '—', 'writes per active account today')}</div>
+    <div class="card"><h4 class="dev-h">Reads per day</h4>${devBars(days14.map(k => ({ label: k, value: reads(k) })), dayLabel)}</div>
+    <div class="card"><h4 class="dev-h">Writes per day</h4>${devBars(days14.map(k => ({ label: k, value: writes(k) })), dayLabel)}</div>
+    <p class="dev-note">Reads & writes are counted by the app on each device and sent with its next update, so they can lag a bit and are an estimate.
+      Free plan: 50,000 reads and 20,000 writes a day. Exact numbers: <a href="https://console.firebase.google.com/project/classquiz-646fe/firestore/usage" target="_blank" rel="noopener">Firebase console → Firestore → Usage</a>.</p>
     <p class="dev-note">Accounts show up here once they open Recess after this update. “Active” and per-day numbers use UTC days.</p>`;
   $('#devRefresh').onclick = renderDev;
 }
