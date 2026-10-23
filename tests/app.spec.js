@@ -5,6 +5,8 @@ const { openApp, createClass, addStudents, becomeStudentAndJoin } = require('./h
 test('app opens with no errors and fits the screen', async ({ page }) => {
   const errors = await openApp(page);
   await expect(page.locator('#firstClass')).toBeVisible();
+  await expect(page).toHaveTitle('Recess');
+  await expect(page.locator('.nav-brand')).toHaveText('Recess');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);

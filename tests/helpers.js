@@ -1,4 +1,4 @@
-// Opens ClassQuiz in "this device only" mode: Firebase, Puter (AI) and Motion are blocked,
+// Opens Recess in "this device only" mode: Firebase, Puter (AI) and Motion are blocked,
 // so tests never touch the real database and run the same every time.
 const { expect } = require('@playwright/test');
 

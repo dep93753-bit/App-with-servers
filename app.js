@@ -1,9 +1,9 @@
-/* ClassQuiz app.js — teacher UI, student UI, AI quiz maker, game launcher.
+/* Recess app.js — teacher UI, student UI, AI quiz maker, game launcher.
    Games live in /games/ — see the GAMES list below (and games/_template.html) to add one. */
 
 // Something broke: show a friendly note (details go to the browser console for debugging).
 window.addEventListener('error', function (e) {
-  console.error('[ClassQuiz]', e.message, e.filename ? e.filename + ':' + e.lineno : '', e.error || '');
+  console.error('[Recess]', e.message, e.filename ? e.filename + ':' + e.lineno : '', e.error || '');
   if (!e.filename || /ResizeObserver|^Script error/.test(e.message || '')) return;   // harmless / outside scripts
   if (document.getElementById('__errbar')) return;
   var el = document.createElement('div'); el.id = '__errbar';
@@ -601,15 +601,15 @@ function paintAvatar() {
 // Install as an app: Chrome/Edge/Android give us a prompt; iPhone needs Share > Add to Home Screen.
 let installPrompt = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
-addEventListener('appinstalled', () => { installPrompt = null; toast('ClassQuiz is installed'); });
+addEventListener('appinstalled', () => { installPrompt = null; toast('Recess is installed'); });
 const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 function installApp() {
   if (installPrompt) { const p = installPrompt; installPrompt = null; closeModal(); p.prompt(); return; }
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  openModal(`<h3>Install ClassQuiz</h3><p class="sub">Add it to your home screen so it opens like an app.</p>
+  openModal(`<h3>Install Recess</h3><p class="sub">Add it to your home screen so it opens like an app.</p>
     <ol class="inst">${ios
       ? `<li>Tap the <b>Share</b> button <i class='bx bx-share' aria-hidden="true"></i> at the bottom of Safari.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li>`
-      : `<li>Open your browser's menu (<b>⋮</b> or <b>…</b>).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Confirm, then open ClassQuiz from your home screen.</li>`}</ol>
+      : `<li>Open your browser's menu (<b>⋮</b> or <b>…</b>).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Confirm, then open Recess from your home screen.</li>`}</ol>
     <div class="foot"><button class="btn" data-x>Got it</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
 }
@@ -711,7 +711,7 @@ function exportBlooket(qs) {
 function exportKahoot(qs) {
   let cut = 0; const clip = (s, n) => { s = String(s || ''); if (s.length > n) { cut++; return s.slice(0, n - 1) + '…'; } return s; };
   // Same layout as Kahoot's own template: notes at the top, headers on row 8, questions from row 9 (column B on).
-  const aoa = [['Quiz template'], ['Exported from ClassQuiz: ' + qs.title], [], [], [], [], [],
+  const aoa = [['Quiz template'], ['Exported from Recess: ' + qs.title], [], [], [], [], [],
     ['', 'Question - max 120 characters', 'Answer 1 - max 75 characters', 'Answer 2 - max 75 characters', 'Answer 3 - max 75 characters', 'Answer 4 - max 75 characters', 'Time limit (sec) – 5, 10, 20, 30, 60, 90, 120, or 240 secs', 'Correct answer(s) - choose at least one']];
   qs.questions.forEach((q, i) => aoa.push([i + 1, clip(q.question, 120), clip(q.options[0], 75), clip(q.options[1], 75), clip(q.options[2], 75), clip(q.options[3], 75),
     nearest(KAHOOT_TIMES, Number(q.timeLimit) || 20), (q.correct || 0) + 1]));
@@ -725,7 +725,7 @@ function openProfile() {
   openModal(`<h3>My account</h3><p class="sub">${esc((Cloud.user && Cloud.user.email) || '')}</p>
   <div class="pf-row"><img id="pfImg" alt=""><div><button class="btn ghost" id="pfPick">Change photo</button> <button class="btn ghost" id="pfClear">Remove</button><input type="file" id="pfFile" accept="image/*" hidden></div></div>
   <label class="pf-l">Display name</label><input type="text" id="pfName" maxlength="30" value="${esc(p.displayName || '')}">
-  <label class="pf-l">I use ClassQuiz as a</label>
+  <label class="pf-l">I use Recess as a</label>
   <div class="role-pick"><button type="button" data-role="teacher"><i class='bx bxs-graduation'></i> Teacher</button><button type="button" data-role="student"><i class='bx bxs-user'></i> Student</button></div>
   <small class="pf-note" id="pfRoleNote"></small>
   <button type="button" class="btn ghost" id="pfTour" style="width:100%;margin-bottom:12px"><i class='bx bx-map-alt'></i> Show me around</button>
@@ -1008,7 +1008,7 @@ function renderStudentLeaderboard(c) {
       const podium = rank <= 3 && r.correct > 0 ? ' r' + rank : '';   // gold / silver / bronze badge
       return `<div class="lb-row ${r.sid === me ? 'me' : ''}"><div class="lb-rank${podium}">${rank}</div><div class="lb-name">${esc(r.name)}${r.sid === me ? ' <small>(you)</small>' : ''}</div><div class="lb-score"><b>${r.correct}</b><small>correct</small></div></div>`;
     }).join('')}</div>
-    <p class="lb-note">Ranked by correct answers across every game. It updates whenever your teacher has ClassQuiz open.</p>`;
+    <p class="lb-note">Ranked by correct answers across every game. It updates whenever your teacher has Recess open.</p>`;
 }
 
 // Question sets a student can play in one class: that class's sets plus the built-in Preset Quiz.
@@ -1750,7 +1750,7 @@ async function puterSignIn() {
 // Step-by-step help shown when a teacher opens AI Quiz without a Puter account.
 const PUTER_STEPS = [
   { icon: 'bxs-bot', title: 'Turn on the AI quiz maker',
-    body: 'ClassQuiz uses <b>Puter</b>, a free AI service, to write your quizzes. You need a free Puter account — you only do this once.' },
+    body: 'Recess uses <b>Puter</b>, a free AI service, to write your quizzes. You need a free Puter account — you only do this once.' },
   { icon: 'bxl-google', title: 'Sign in with Google',
     body: 'A Puter window will open. Tap <b>Continue with Google</b> and pick your account. (You can also create a Puter account with an email.)',
     art: `<div class="pt-mock"><div class="pt-bar">puter.com</div><div class="pt-gbtn"><i class='bx bxl-google'></i> Continue with Google</div><div class="pt-or">or sign up with email</div></div>` },
@@ -1954,7 +1954,7 @@ document.getElementById('puterLogout').addEventListener('click', e => { e.preven
 
 /* ===================== Guided tour (spotlight) =====================
    Dims the screen, lights up one real button at a time and explains it. Runs by itself the first time someone
-   uses ClassQuiz on a device (per role), and again from Account → "Show me around". Steps with `wait` hold until
+   uses Recess on a device (per role), and again from Account → "Show me around". Steps with `wait` hold until
    the person actually does the thing (make a first class / join a class). */
 const TOUR_KEY = () => 'adminhub_tour_done_' + uiMode;
 const visibleEl = sel => [].concat(sel || []).map(x => document.querySelector(x))
@@ -1967,7 +1967,7 @@ function teacherTourSteps() {
   const page = v => () => { if (nav !== v) goNav(v); };
   const classTab = t => () => { if (nav !== 'classes') goNav('classes'); if (tab !== t) { tab = t; render(); } };
   steps.push(
-    { title: 'Welcome to ClassQuiz!', text: 'Here’s a quick tour of everything on the teacher side. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: classTab('activity') },
+    { title: 'Welcome to Recess!', text: 'Here’s a quick tour of everything on the teacher side. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: classTab('activity') },
     // ---- Classes ----
     { sel: ['#ownedList', '#classPick'], title: 'Your classes', text: 'All your classes are listed here. Tap one to open it, or make another with <b>Create class</b>.', before: classTab('activity') },
     { sel: '#joinBtn', title: 'Your join code', text: 'Students type this code to join your class. Tap it to copy it or show it big on the board.' },
@@ -2006,7 +2006,7 @@ function studentTourSteps() {
     text: 'Type the class code your teacher gave you, then tap <b>Join class</b>. The tour carries on once you’re in.',
     wait: () => joinedIds.length > 0 && !!studentSession && !studentJoinOpen });
   steps.push(
-    { title: 'Welcome to ClassQuiz!', text: 'Here’s a quick look around. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: () => { studentJoinOpen = false; studentTab = 'home'; route(); } },
+    { title: 'Welcome to Recess!', text: 'Here’s a quick look around. Tap <b>Next</b> to move along, or <b>Skip tour</b> any time.', before: () => { studentJoinOpen = false; studentTab = 'home'; route(); } },
     { sel: '#studentClassTabs', title: 'Your classes', text: 'Every class you join gets its own tab. Tap <b>Join class</b> to add another one.' },
     { sel: '#studentClassInner .tabs', title: 'Class pages', text: '<b>Home</b>, your teacher’s <b>posts</b>, <b>assignments</b>, <b>practice</b> games and <b>my scores</b>.' },
     { sel: '#studentTabBody', title: 'Assignments', text: 'Quizzes from your teacher show up here. Tap <b>Play</b> to start one.', before: () => { studentTab = 'assignments'; renderStudentClass(); } },
@@ -2143,7 +2143,7 @@ function applyRemoteClass(d) {
   b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:600 11px Poppins,sans-serif;padding:4px 10px;border-radius:20px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);max-width:70vw';
   const paint = () => {
     // only shown when there's a problem — a working connection needs no badge
-    const m = { error: ['#DB504A', 'Can’t reach ClassQuiz right now — changes will sync when you’re back online'], offline: ['#777', 'Offline — changes stay on this device'] }[Cloud.status];
+    const m = { error: ['#DB504A', 'Can’t reach Recess right now — changes will sync when you’re back online'], offline: ['#777', 'Offline — changes stay on this device'] }[Cloud.status];
     b.style.display = m ? '' : 'none';
     if (m) { b.style.color = m[0]; b.textContent = m[1]; b.title = Cloud.lastError || ''; }
   };

@@ -1,6 +1,6 @@
 {
-  "name": "ClassQuiz",
-  "short_name": "ClassQuiz",
+  "name": "Recess",
+  "short_name": "Recess",
   "description": "Classroom quizzes and quiz-powered games for teachers and students.",
   "start_url": "./index.html",
   "scope": "./",

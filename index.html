@@ -8,8 +8,8 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ClassQuiz">
-<title>ClassQuiz</title>
+<meta name="apple-mobile-web-app-title" content="Recess">
+<title>Recess</title>
 <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 <link href='https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap' rel='stylesheet'>
 <script src="https://js.puter.com/v2/"></script>
@@ -24,7 +24,7 @@ window.addEventListener('load', function () {
   }
 });
 </script>
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <div id="authGate" hidden>
@@ -78,7 +78,7 @@ window.addEventListener('load', function () {
   </div>
 </div>
 <section id="sidebar">
-  <a href="#" class="brand"><i class='bx bxs-smile bx-lg'></i><span class="text">ClassQuiz</span></a>
+  <a href="#" class="brand"><span class="brand-logo"><img src="icons/logo.svg" alt="" width="46" height="46"></span><span class="text">Recess</span></a>
   <ul class="side-menu top teacher-menu">
     <li class="active" data-view="classes"><a href="#"><i class='bx bxs-graduation bx-sm'></i><span class="text">Classes</span></a></li>
     <li data-view="ai"><a href="#"><i class='bx bxs-bot bx-sm'></i><span class="text">AI Quiz</span></a></li>
@@ -99,7 +99,7 @@ window.addEventListener('load', function () {
 <section id="content">
   <nav>
     <button class="menu-btn" id="menuBtn" aria-label="Show or hide menu"><i class='bx bx-menu bx-sm' aria-hidden="true"></i></button>
-    <span class="nav-spacer"><b class="nav-brand">ClassQuiz</b></span>
+    <span class="nav-spacer"><b class="nav-brand">Recess</b></span>
     <a href="#" class="notification" id="notificationIcon" title="Recent student activity" aria-label="Recent student activity"><i class='bx bxs-bell'></i><span class="num" id="notifNum" hidden></span></a>
     <div class="dd" id="notificationMenu"><ul id="notifList"></ul></div>
     <a href="#" class="profile" id="profileIcon" aria-label="My account"><img src="https://placehold.co/600x400/png" alt="Profile" width="36" height="36"></a>
@@ -206,7 +206,7 @@ window.addEventListener('load', function () {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <!-- bump ?v= on these (and app.js in data.js) after changing them, so browsers skip their old cached copy -->
 <script src="auth.js?v=2"></script>
-<script src="data.js?v=15"></script>
+<script src="data.js?v=16"></script>
 <!-- data.js loads app.js after sign-in -->
 </body>
 </html>
