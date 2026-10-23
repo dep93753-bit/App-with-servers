@@ -642,3 +642,11 @@ body:not(.dev-on) .seesaw.rock .ss-plank{animation-name:ss-tip-left}
 .dev-row b{text-align:right}
 .dev-note{color:var(--dark-grey);font-size:12px;margin:4px 0 20px}
 @media (max-width:700px){.dev-bar small{display:none}.dev-row{grid-template-columns:100px 1fr 40px}}
+
+/* ===== loading screen: the name writes itself out (worm lettering) ===== */
+#splash{position:fixed;inset:0;z-index:100000;background:#F9F9F9;display:flex;align-items:center;justify-content:center;transition:opacity .45s ease-out;cursor:pointer}
+#splash.out{opacity:0;pointer-events:none}
+.worm{width:min(82vw,560px);height:auto;overflow:visible}
+.worm path{fill:none;stroke:#2F65C8;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 1;stroke-dashoffset:1;opacity:0;animation:worm-write .5s cubic-bezier(.45,0,.25,1) forwards}
+@keyframes worm-write{0%{stroke-dashoffset:1;opacity:1}100%{stroke-dashoffset:0;opacity:1}}
+@media (prefers-reduced-motion:reduce){.worm path{animation:none;stroke-dashoffset:0;opacity:1}}

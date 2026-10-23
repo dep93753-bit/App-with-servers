@@ -1,7 +1,7 @@
 {
   "name": "classquiz",
   "private": true,
-  "description": "Recess — automatic browser tests (the app itself needs no build step)",
+  "description": "QuizSpill — automatic browser tests (the app itself needs no build step)",
   "scripts": {
     "test": "playwright test"
   },

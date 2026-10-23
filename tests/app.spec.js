@@ -5,8 +5,8 @@ const { openApp, createClass, addStudents, becomeStudentAndJoin } = require('./h
 test('app opens with no errors and fits the screen', async ({ page }) => {
   const errors = await openApp(page);
   await expect(page.locator('#firstClass')).toBeVisible();
-  await expect(page).toHaveTitle('Recess');
-  await expect(page.locator('.nav-brand')).toHaveText('Recess');
+  await expect(page).toHaveTitle('QuizSpill');
+  await expect(page.locator('.nav-brand')).toHaveText('QuizSpill');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);
@@ -268,4 +268,17 @@ test('developer account: tapping the seesaw flips it and opens the developer pag
   await expect(page.locator('body')).not.toHaveClass(/dev-on/);
   await expect(page.locator('#devView')).not.toHaveClass(/\bon\b/);
   expect(errors).toEqual([]);
+});
+
+test.describe('loading screen', () => {
+  test.use({ reducedMotion: 'no-preference' });
+  test('QUIZSPILL writes itself out, then the loading screen goes away', async ({ page }) => {
+    await page.route(/gstatic\.com\/firebasejs|js\.puter\.com|cdn\.jsdelivr\.net/, r => r.abort());
+    await page.goto('/index.html');
+    await expect(page.locator('#splash .worm')).toBeVisible();
+    await expect(page.locator('#splash .worm path')).toHaveCount(9);            // one stroke per letter
+    // letters start hidden and finish fully drawn
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('#splash .worm path:last-child')).strokeDashoffset), { timeout: 3000 }).toMatch(/^0(px)?$/);
+    await expect(page.locator('#splash')).toHaveCount(0, { timeout: 5000 });
+  });
 });

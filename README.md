@@ -5,4 +5,4 @@ desktop and a phone screen with Firebase and the AI turned off, so they never to
 To run them yourself: `npm install`, then `npm test`.
 
 ## Credits
-The Recess seesaw logo uses the "seesaw" icon from [Material Design Icons](https://pictogrammers.com/library/mdi/) by Pictogrammers (Pictogrammers Free License).
+The QuizSpill seesaw logo uses the "seesaw" icon from [Material Design Icons](https://pictogrammers.com/library/mdi/) by Pictogrammers (Pictogrammers Free License).

@@ -1,4 +1,4 @@
-// Opens Recess in "this device only" mode: Firebase, Puter (AI) and Motion are blocked,
+// Opens QuizSpill in "this device only" mode: Firebase, Puter (AI) and Motion are blocked,
 // so tests never touch the real database and run the same every time.
 const { expect } = require('@playwright/test');
 
@@ -19,6 +19,7 @@ async function openApp(page, { aiReply } = {}) {
   }, aiReply || null);
   await page.goto('/index.html');
   await page.waitForFunction(() => typeof render === 'function' && document.querySelector('#classView').children.length > 0);
+  await page.waitForSelector('#splash', { state: 'detached' });     // loading screen gone
   return errors;
 }
 
