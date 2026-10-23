@@ -26,7 +26,7 @@ window.addEventListener('load', function () {
   }
 });
 </script>
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 <!-- Loading screen: "QUIZSPILL" writes itself out like a worm (NASA-worm style lettering), then fades away. Tap to skip. -->
@@ -90,7 +90,7 @@ window.addEventListener('load', function () {
   </div>
 </div>
 <section id="sidebar">
-  <a href="#" class="brand"><span class="brand-logo" data-devtoggle><span class="seesaw" aria-hidden="true"><span class="ss-plank"><i></i><i></i></span><span class="ss-base"></span></span></span><span class="text">QuizSpill</span></a>
+  <a href="#" class="brand"><span class="brand-logo" data-devtoggle><span class="seesaw" aria-hidden="true"><span class="ss-plank"><i></i><i></i></span><span class="ss-base"></span></span></span><span class="text"><svg class="wordmark" viewBox="-8 -8 929 130" aria-hidden="true"><g><path d="M36,0 L60,0 A36,36 0 0 1 96,36 L96,64 A36,36 0 0 1 60,100 L36,100 A36,36 0 0 1 0,64 L0,36 A36,36 0 0 1 36,0 Z M64,72 L98,104" transform="translate(7,7.0)"/><path d="M0,0 L0,64 A36,36 0 0 0 36,100 L60,100 A36,36 0 0 0 96,64 L96,0" transform="translate(137,7.0)"/><path d="M0,0 L0,100" transform="translate(267,7.0)"/><path d="M0,0 L92,0 L0,100 L92,100" transform="translate(301,7.0)"/><path d="M94,0 L32,0 A25,25 0 0 0 32,50 L64,50 A25,25 0 0 1 64,100 L0,100" transform="translate(427,7.0)"/><path d="M0,100 L0,0 L60,0 A29,29 0 0 1 60,58 L0,58" transform="translate(555,7.0)"/><path d="M0,0 L0,100" transform="translate(678,7.0)"/><path d="M0,0 L0,100 L80,100" transform="translate(712,7.0)"/><path d="M0,0 L0,100 L80,100" transform="translate(826,7.0)"/></g></svg><span class="sr-only">QuizSpill</span></span></a>
   <ul class="side-menu top teacher-menu">
     <li class="active" data-view="classes"><a href="#"><i class='bx bxs-graduation bx-sm'></i><span class="text">Classes</span></a></li>
     <li data-view="ai"><a href="#"><i class='bx bxs-bot bx-sm'></i><span class="text">AI Quiz</span></a></li>
@@ -111,7 +111,7 @@ window.addEventListener('load', function () {
 <section id="content">
   <nav>
     <button class="menu-btn" id="menuBtn" aria-label="Show or hide menu"><i class='bx bx-menu bx-sm' aria-hidden="true"></i></button>
-    <span class="nav-spacer"><b class="nav-brand"><span class="nav-logo" data-devtoggle><span class="seesaw" aria-hidden="true"><span class="ss-plank"><i></i><i></i></span><span class="ss-base"></span></span></span>QuizSpill</b></span>
+    <span class="nav-spacer"><b class="nav-brand"><span class="nav-logo" data-devtoggle><span class="seesaw" aria-hidden="true"><span class="ss-plank"><i></i><i></i></span><span class="ss-base"></span></span></span><svg class="wordmark" viewBox="-8 -8 929 130" aria-hidden="true"><g><path d="M36,0 L60,0 A36,36 0 0 1 96,36 L96,64 A36,36 0 0 1 60,100 L36,100 A36,36 0 0 1 0,64 L0,36 A36,36 0 0 1 36,0 Z M64,72 L98,104" transform="translate(7,7.0)"/><path d="M0,0 L0,64 A36,36 0 0 0 36,100 L60,100 A36,36 0 0 0 96,64 L96,0" transform="translate(137,7.0)"/><path d="M0,0 L0,100" transform="translate(267,7.0)"/><path d="M0,0 L92,0 L0,100 L92,100" transform="translate(301,7.0)"/><path d="M94,0 L32,0 A25,25 0 0 0 32,50 L64,50 A25,25 0 0 1 64,100 L0,100" transform="translate(427,7.0)"/><path d="M0,100 L0,0 L60,0 A29,29 0 0 1 60,58 L0,58" transform="translate(555,7.0)"/><path d="M0,0 L0,100" transform="translate(678,7.0)"/><path d="M0,0 L0,100 L80,100" transform="translate(712,7.0)"/><path d="M0,0 L0,100 L80,100" transform="translate(826,7.0)"/></g></svg><span class="sr-only">QuizSpill</span></b></span>
     <a href="#" class="notification" id="notificationIcon" title="Recent student activity" aria-label="Recent student activity"><i class='bx bxs-bell'></i><span class="num" id="notifNum" hidden></span></a>
     <div class="dd" id="notificationMenu"><ul id="notifList"></ul></div>
     <a href="#" class="profile" id="profileIcon" aria-label="My account"><img src="https://placehold.co/600x400/png" alt="Profile" width="36" height="36"></a>

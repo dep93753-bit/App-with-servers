@@ -650,3 +650,9 @@ body:not(.dev-on) .seesaw.rock .ss-plank{animation-name:ss-tip-left}
 .worm path{fill:none;stroke:#2F65C8;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 1;stroke-dashoffset:1;opacity:0;animation:worm-write .5s cubic-bezier(.45,0,.25,1) forwards}
 @keyframes worm-write{0%{stroke-dashoffset:1;opacity:1}100%{stroke-dashoffset:0;opacity:1}}
 @media (prefers-reduced-motion:reduce){.worm path{animation:none;stroke-dashoffset:0;opacity:1}}
+
+/* the name next to the seesaw, in the same worm lettering as the loading screen */
+.wordmark{height:20px;width:auto;overflow:visible;vertical-align:middle}
+.wordmark path{fill:none;stroke:currentColor;stroke-width:20;stroke-linecap:round;stroke-linejoin:round}
+#content nav .nav-brand .wordmark{height:16px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
