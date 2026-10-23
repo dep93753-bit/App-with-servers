@@ -1,0 +1,11 @@
+{
+  "name": "classquiz",
+  "private": true,
+  "description": "ClassQuiz — automatic browser tests (the app itself needs no build step)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
