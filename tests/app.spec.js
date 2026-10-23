@@ -229,3 +229,38 @@ test('removing a student blocks them, and the teacher can let them back in', asy
   await expect(page.locator('#modal [data-unblock]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('the seesaw logo does nothing for normal accounts', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.locator('[data-devtoggle]:visible').first().click();
+  await expect(page.locator('body')).not.toHaveClass(/dev-on/);
+  await expect(page.locator('#devView')).not.toHaveClass(/\bon\b/);
+  expect(errors).toEqual([]);
+});
+
+test('developer account: tapping the seesaw flips it and opens the developer page', async ({ page }) => {
+  const errors = await openApp(page);
+  const day = k => new Date(Date.now() - k * 864e5).toISOString().slice(0, 10);
+  await page.evaluate(([d0, d1]) => {
+    Cloud.isDev = () => true;
+    Cloud.devStats = async () => [
+      { role: 'teacher', device: 'computer', installed: false, firstSeen: Date.now() - 40 * 864e5, lastSeen: Date.now(), plays: 3, games: { tetris: 3 }, days: { [d0]: 3 }, classes: 2, sets: 4, aiQuizzes: 1 },
+      { role: 'student', device: 'phone', installed: true, firstSeen: Date.now() - 864e5, lastSeen: Date.now() - 864e5, plays: 6, games: { tetris: 1, hangman: 5 }, days: { [d1]: 6 } },
+      { role: 'student', device: 'phone', installed: false, firstSeen: Date.now() - 60 * 864e5, lastSeen: Date.now() - 50 * 864e5, plays: 0, games: {}, days: {} }
+    ];
+  }, [day(0), day(1)]);
+  await page.locator('[data-devtoggle]:visible').first().click();
+  await expect(page.locator('body')).toHaveClass(/dev-on/);
+  await expect(page.locator('#devView')).toHaveClass(/\bon\b/);
+  const stats = page.locator('#devView .tstat');
+  await expect(stats.filter({ hasText: 'unique accounts' })).toContainText('3');
+  await expect(stats.filter({ hasText: 'active this week' })).toContainText('2');
+  await expect(stats.filter({ hasText: 'games played' })).toContainText('9');
+  await expect(stats.filter({ hasText: 'installed the app' })).toContainText('1');
+  await expect(page.locator('#devView .dev-row').first()).toContainText('Hangman');
+  // tap again: back to normal
+  await page.locator('[data-devtoggle]:visible').first().click();
+  await expect(page.locator('body')).not.toHaveClass(/dev-on/);
+  await expect(page.locator('#devView')).not.toHaveClass(/\bon\b/);
+  expect(errors).toEqual([]);
+});

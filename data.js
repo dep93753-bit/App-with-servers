@@ -15,10 +15,11 @@ window.Cloud = (function () {
   const api = {
     enabled: false, uid: null, user: null, profile: null, ready: Promise.resolve(false), status: 'offline', lastError: '',
     publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop, saveDone: noop,
+    isDev: () => false, trackVisit: noop, trackPlay: noop, trackAI: noop, devStats: async () => [],
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=16'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=17'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -149,6 +150,34 @@ window.Cloud = (function () {
       won: !!r.won, quit: !!r.quit, score: Number(r.score) || 0, answers: clean(r.answers || []), time: r.time || Date.now(), at: ts()
     });
   });
+
+  /* ---------- usage numbers for the developer page (no names or emails, just counts) ---------- */
+  const DEV_EMAIL = 'hatfieldnathan@oacsd.org';
+  api.isDev = () => !!(api.user && api.user.emailVerified && (api.user.email || '').toLowerCase() === DEV_EMAIL);
+  const usageRef = () => db.collection('usage').doc(api.uid);
+  const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+  const inc = n => firebase.firestore.FieldValue.increment(n);
+  // Tracking never shows errors to people (e.g. before the new rules are published it just does nothing).
+  const quiet = fn => async (...a) => { if (!(await api.ready)) return null; try { return await fn(...a); } catch (e) { console.warn('[usage]', e.code || e.message); return null; } };
+  api.trackVisit = quiet(async info => {            // once per app start: {role, device, installed, classes, sets}
+    const ref = usageRef(), snap = await ref.get(), old = snap.exists ? snap.data() : {};
+    const created = Date.parse(api.user.metadata && api.user.metadata.creationTime) || Date.now();
+    const data = { role: info.role, device: info.device, installed: !!(old.installed || info.installed), lastSeen: Date.now(), firstSeen: old.firstSeen || created, days: { [dayKey()]: inc(0) } };
+    if (info.role === 'teacher') { data.classes = info.classes || 0; data.sets = info.sets || 0; }
+    const cutoff = dayKey(Date.now() - 35 * 864e5);                // keep about 5 weeks of daily numbers
+    Object.keys(old.days || {}).filter(k => k < cutoff).forEach(k => { data.days[k] = firebase.firestore.FieldValue.delete(); });
+    await ref.set(data, { merge: true });
+  });
+  api.trackPlay = quiet(async game => {
+    const g = String(game || 'unknown').replace(/[^a-z0-9]/gi, '').slice(0, 20) || 'unknown';
+    await usageRef().set({ plays: inc(1), games: { [g]: inc(1) }, days: { [dayKey()]: inc(1) }, lastSeen: Date.now() }, { merge: true });
+  });
+  api.trackAI = quiet(async () => { await usageRef().set({ aiQuizzes: inc(1) }, { merge: true }); });
+  api.devStats = async () => {                       // developer only (firestore.rules refuse everyone else)
+    if (!(await api.ready)) throw new Error('not signed in');
+    const snap = await db.collection('usage').limit(10000).get();
+    return snap.docs.map(d => d.data());
+  };
 
   const watch = (getRef, map) => (code, cb) => {
     let unsub = () => {}, dead = false;

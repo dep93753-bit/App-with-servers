@@ -9,7 +9,7 @@ service cloud.firestore {
     }
     // The app's developer: may read everyone's usage record (no names or emails are in it).
     function isDev() {
-      return signedIn() && request.auth.token.email == 'dep93753@gmail.com' && request.auth.token.email_verified == true;
+      return signedIn() && request.auth.token.email == 'hatfieldnathan@oacsd.org' && request.auth.token.email_verified == true;
     }
     // Students the teacher removed AND blocked (their account ids are in the class's "blocked" list).
     function isBlocked(code) {
