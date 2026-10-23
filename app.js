@@ -224,7 +224,7 @@ function showSettings() {
   $('#s2').onchange = e => { s.wallVisible = e.target.checked; save(); render(); };
   $('#s3').onchange = e => { s.leaderboard = e.target.checked; save(); render(); toast(s.leaderboard ? 'Leaderboard on for students' : 'Leaderboard hidden'); };
   $('#sc').onclick = showCode;
-  $('#sr').onclick = () => { if ((c.students || []).length) showRoster(); else toast('No students yet — share the join code'); };
+  $('#sr').onclick = () => { if ((c.students || []).length || (c.blocked || []).length) showRoster(); else toast('No students yet — share the join code'); };
   $('#sv').onclick = closeModal;
   $('#dc').onclick = () => { if (confirm('Delete "' + c.name + '"? This cannot be undone.')) {
     if (!c.remote) Cloud.deleteClass(c.code).catch(() => {});
@@ -245,8 +245,10 @@ function dueLabel(a, done) {                 // "Due Fri, Oct 30" / "Due today" 
 // Text assignments: the student ticks them off on their own device.
 function assignmentDone(c, a, sid) {
   if (a.kind === 'quiz' && a.quizId) return getStudentScores(c.id, sid).some(x => x.quizId === a.quizId && !x.quit && x.time >= a.time);
-  try { return (JSON.parse(localStorage.getItem('adminhub_done_' + c.id) || '[]')).includes(a.id); } catch (e) { return false; }
+  if (uiMode !== 'student') return ((c.students || []).find(s => s.id === sid) || {}).done?.includes(a.id) || false;   // teacher: from the roster
+  return myDoneList(c).includes(a.id);
 }
+function myDoneList(c) { try { return JSON.parse(localStorage.getItem('adminhub_done_' + c.id) || '[]'); } catch (e) { return []; } }
 function addAssignment() {
   openModal(`<h3>New assignment</h3><p class="sub">Students see it under Assignments.</p>
     <input type="text" id="ask" maxlength="120" placeholder="Assignment title, e.g. Read chapter 4">${dueField()}
@@ -271,7 +273,7 @@ function listHtml(items, key, empty, opts = {}) {
       </div>`;
     }
     const c = cur(), roster = (c.students || []).filter(s => !isRemoved(c, s.id));
-    const progress = key === 'assignments' && i.kind === 'quiz' && roster.length ? ` · <b>${roster.filter(s => assignmentDone(c, i, s.id)).length}/${roster.length} done</b>` : '';
+    const progress = key === 'assignments' && roster.length ? ` · <b>${roster.filter(s => assignmentDone(c, i, s.id)).length}/${roster.length} done</b>` : '';
     return `<div class="post"><div class="meta">${tAv(teacherOf(cur()), i.kind === 'quiz' ? 'bx-task' : 'bxs-user')}<div><b>${esc(teacherOf(cur()).name)}</b><small>${fmt(i.time)}${i.kind === 'quiz' ? ' · quiz' : ''}${progress} ${dueLabel(i, false)}</small></div>
       <button class="del" data-del="${key}:${i.id}" aria-label="Delete"><i class='bx bx-trash'></i></button></div><p>${esc(i.text)}</p>${extra}</div>`;
   }).join('')}</div>`;
@@ -344,8 +346,8 @@ function dashHtml(c) {
 /* ===================== Teacher: roster modal ===================== */
 function showRoster() {
   const c = cur(); if (!c) return;
-  const students = c.students || [];
-  if (!students.length) return toast('No students yet');
+  const students = c.students || [], blocked = c.blocked || [];
+  if (!students.length && !blocked.length) return toast('No students yet');
   const rows = students.map(s => {
     const scores = getStudentScores(c.id, s.id);
     let total = 0, correct = 0;
@@ -365,8 +367,16 @@ function showRoster() {
           <button class="iconbtn-sm danger" data-rm="${esc(r.s.id)}" title="Remove from class" aria-label="Remove from class"><i class='bx bx-user-x'></i></button>
         </div>`).join('')}
     </div>
+    ${blocked.length ? `<div class="sec">Blocked (${blocked.length})</div><p class="sub" style="margin:0 0 6px">They can’t rejoin with the code or send scores.</p>
+      ${blocked.map(uid => `<div class="roster-row"><div class="roster-av"><i class='bx bx-block'></i></div><div style="flex:1;min-width:0"><div class="roster-name">${esc((c.blockedNames || {})[uid] || 'Removed student')}</div></div>
+        <button class="btn ghost" data-unblock="${esc(uid)}">Let back in</button></div>`).join('')}` : ''}
     <div class="foot"><button class="btn ghost" data-x>Close</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
+  $('#modal').querySelectorAll('[data-unblock]').forEach(b => b.onclick = () => {
+    const uid = b.dataset.unblock, name = (c.blockedNames || {})[uid] || 'that student';
+    c.blocked = (c.blocked || []).filter(x => x !== uid); if (c.blockedNames) delete c.blockedNames[uid];
+    save(); showRoster(); toast(name + ' can join again with the class code');
+  });
   $('#modal').querySelectorAll('[data-rn]').forEach(b => b.onclick = () => {
     const s = students.find(x => x.id === b.dataset.rn); if (!s) return;
     ask('Rename student', 'This is the name you, the leaderboard and reports will show.', 'Student name', name => {
@@ -375,12 +385,13 @@ function showRoster() {
   });
   $('#modal').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
     const s = students.find(x => x.id === b.dataset.rm); if (!s) return;
-    if (!confirm('Remove ' + studentName(c, s) + ' from ' + c.name + '? Their results are hidden from your reports and the leaderboard. They can rejoin with the class code.')) return;
+    if (!confirm('Remove ' + studentName(c, s) + ' from ' + c.name + '? Their results are hidden from your reports and the leaderboard' + (s.uid ? ', and they can’t rejoin with the class code (you can let them back in from this list).' : '.'))) return;
     c.removed = c.removed || {}; c.removed[s.id] = Date.now();
+    if (s.uid) { c.blocked = [...new Set([...(c.blocked || []), s.uid])]; c.blockedNames = { ...(c.blockedNames || {}), [s.uid]: studentName(c, s) }; }
     c.students = c.students.filter(x => x.id !== s.id);
     if (!c.remote) Cloud.removeStudent(c.code, s.id).catch(e => console.warn('Remove failed', e));
     save(); render(); toast('Removed ' + studentName(c, s));
-    if (c.students.length) showRoster(); else closeModal();
+    if ((c.students || []).length || (c.blocked || []).length) showRoster(); else closeModal();
   });
 }
 
@@ -838,14 +849,14 @@ function renderStudentJoin() {
       try { c = await importRemoteClass(code); } catch (e) { console.warn('Join lookup failed', e); joinFail = e.code || e.message || 'unknown error'; }
       btn.disabled = false; btn.textContent = 'Join class';
     }
-    if (!c) { if (err) { err.textContent = joinFail ? 'Could not reach the class (' + joinFail + ').' : 'No class found with that code. Check with your teacher.'; err.style.display = 'block'; } return; }
+    if (!c) { if (err) { err.textContent = joinFail === 'permission-denied' ? 'Your teacher has removed you from this class.' : joinFail ? 'Could not reach the class (' + joinFail + ').' : 'No class found with that code. Check with your teacher.'; err.style.display = 'block'; } return; }
     if (err) err.style.display = 'none';
     const already = joinedIds.includes(c.id);
     if (!already) { joinedIds.push(c.id); saveJoined(); }
     openStudentClass(c.id);
     registerStudentInClass(c);
     const me = c.students.find(s => s.id === studentIdentity.id);
-    Cloud.joinClass(c.code, { sid: studentIdentity.id, name: studentIdentity.name, joinedAt: me ? me.joinedAt : Date.now() }).catch(() => {});
+    Cloud.joinClass(c.code, { sid: studentIdentity.id, name: studentIdentity.name, joinedAt: me ? me.joinedAt : Date.now(), done: myDoneList(c) }).catch(() => {});
     cloudWatchStudent();
     c.opened = Date.now(); save();
     toast(already ? 'You’re already in ' + c.name : 'Joined ' + c.name + ' — it has its own tab now');
@@ -1090,6 +1101,7 @@ function renderStudentAssignments(c) {
     let list = []; try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
     list = list.includes(id) ? list.filter(x => x !== id) : list.concat(id);
     try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+    if (c.remote && c.code) Cloud.saveDone(c.code, list).catch(e => console.warn('Could not sync done list', e));
     renderStudentClass();
     const moved = document.querySelector(`#studentTabBody [data-aid="${id}"]`);
     if (moved) { FX.enter(moved); FX.tick(moved.querySelector('.done-tag')); }
@@ -2102,8 +2114,11 @@ function cloudWatchTeacher() {            // pull students + scores from student
       list.forEach(st => {
         if (isRemoved(c, st.sid)) { if ((st.lastSeen || 0) > c.removed[st.sid]) { delete c.removed[st.sid]; changed = true; } else return; }   // rejoined after being removed
         const ex = c.students.find(x => x.id === st.sid);
-        if (!ex) { c.students.push({ id: st.sid, name: st.name, joinedAt: st.joinedAt, lastSeen: st.lastSeen }); changed = true; }
-        else if (ex.name !== st.name || ex.lastSeen !== st.lastSeen) { ex.name = st.name; ex.lastSeen = st.lastSeen; changed = true; }
+        const done = Array.isArray(st.done) ? st.done : [];
+        if (!ex) { c.students.push({ id: st.sid, uid: st.uid, name: st.name, joinedAt: st.joinedAt, lastSeen: st.lastSeen, done }); changed = true; }
+        else if (ex.name !== st.name || ex.lastSeen !== st.lastSeen || ex.uid !== st.uid || JSON.stringify(ex.done || []) !== JSON.stringify(done)) {
+          Object.assign(ex, { name: st.name, lastSeen: st.lastSeen, uid: st.uid, done }); changed = true;
+        }
       });
       if (changed) { save(); cloudRefresh(); }
     });
