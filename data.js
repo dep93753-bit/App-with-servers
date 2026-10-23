@@ -15,11 +15,11 @@ window.Cloud = (function () {
   const api = {
     enabled: false, uid: null, user: null, profile: null, ready: Promise.resolve(false), status: 'offline', lastError: '',
     publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop, saveDone: noop,
-    isDev: () => false, trackVisit: noop, trackPlay: noop, trackAI: noop, devStats: async () => [],
+    isDev: () => false, addPost: noop, deletePost: noop, watchPosts: off, trackVisit: noop, trackPlay: noop, trackAI: noop, devStats: async () => [],
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=19'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=20'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -166,6 +166,26 @@ window.Cloud = (function () {
       won: !!r.won, quit: !!r.quit, score: Number(r.score) || 0, answers: clean(r.answers || []), time: r.time || Date.now(), at: ts()
     }); W();
   });
+
+  // Students' wall posts are their own documents (the teacher's posts are part of the class itself), so each
+  // post is saved under the account that wrote it. Errors here go to the caller, not the status badge.
+  api.addPost = async (code, p) => {
+    if (!(await api.ready)) throw new Error('not signed in');
+    const ref = await classRef(code).collection('posts').add({ uid: api.uid, sid: p.sid, name: String(p.name || 'Student').slice(0, 30), text: String(p.text).slice(0, 500), time: Date.now(), at: ts() });
+    W(); return ref.id;
+  };
+  api.deletePost = async (code, id) => { if (!(await api.ready)) return; await classRef(code).collection('posts').doc(id).delete(); W(); };
+  api.watchPosts = (code, cb) => {                   // newest 50 posts; retries a little while a new student's join finishes
+    let unsub = () => {}, dead = false, tries = 0;
+    const start = () => { if (dead) return;
+      unsub = classRef(code).collection('posts').orderBy('time', 'desc').limit(50).onSnapshot(s => {
+        if (!s.metadata.fromCache) R(s.docChanges().length);
+        cb(s.docs.map(d => ({ ...d.data(), at: null, id: d.id })));
+      }, e => { if (e.code === 'permission-denied' && ++tries < 4) setTimeout(start, 3000); else console.warn('[Cloud] wall:', e.code); });
+    };
+    api.ready.then(ok => { if (ok) start(); });
+    return () => { dead = true; unsub(); };
+  };
 
   const watch = (getRef, map) => (code, cb) => {
     let unsub = () => {}, dead = false;

@@ -656,3 +656,11 @@ body:not(.dev-on) .seesaw.rock .ss-plank{animation-name:ss-tip-left}
 .wordmark path{fill:none;stroke:currentColor;stroke-width:20;stroke-linecap:round;stroke-linejoin:round}
 #content nav .nav-brand .wordmark{height:16px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ===== class wall: student posts ===== */
+.stu-av{background:var(--light-blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700}
+.stu-composer textarea{flex:1;min-width:0;border:1px solid #ccc;border-radius:8px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical;min-height:52px;background:transparent;color:var(--dark)}
+.stu-composer textarea:focus{border-color:var(--blue);outline:none}
+.stu-post-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}
+.stu-post-row small{color:var(--dark-grey)}
+.student-post .meta .del{margin-left:auto}

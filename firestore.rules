@@ -12,6 +12,10 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email == 'hatfieldnathan@oacsd.org' && request.auth.token.email_verified == true;
     }
     // Students the teacher removed AND blocked (their account ids are in the class's "blocked" list).
+    // Signed-in person who has joined the class (has an entry on its roster).
+    function isMember(code) {
+      return signedIn() && exists(/databases/$(database)/documents/classes/$(code)/students/$(request.auth.uid));
+    }
     function isBlocked(code) {
       return request.auth.uid in get(/databases/$(database)/documents/classes/$(code)).data.get('blocked', []);
     }
@@ -49,6 +53,21 @@ service cloud.firestore {
                               && request.resource.data.name is string
                               && request.resource.data.name.size() <= 30;
         allow read, delete: if isOwner(code);
+      }
+
+      // Wall posts written by students (the teacher's own posts live on the class itself).
+      // Classmates and the teacher can read them; a class member may post as themselves while the teacher
+      // allows student posts; the teacher can delete any post, a student only their own.
+      match /posts/{id} {
+        allow read: if isOwner(code) || (isMember(code) && !isBlocked(code));
+        allow create: if signedIn() && isMember(code) && !isBlocked(code)
+                      && get(/databases/$(database)/documents/classes/$(code)).data.get('settings', {}).get('studentsCanPost', false) == true
+                      && request.resource.data.keys().hasOnly(['uid', 'sid', 'name', 'text', 'time', 'at'])
+                      && request.resource.data.uid == request.auth.uid
+                      && request.resource.data.name is string && request.resource.data.name.size() <= 30
+                      && request.resource.data.text is string && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 500;
+        allow delete: if isOwner(code) || (signedIn() && resource.data.uid == request.auth.uid);
       }
 
       // Scores: a student can add their own results but never edit or read others; only the teacher reads.

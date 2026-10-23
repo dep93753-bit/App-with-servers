@@ -282,3 +282,42 @@ test.describe('loading screen', () => {
     await expect(page.locator('#splash')).toHaveCount(0, { timeout: 5000 });
   });
 });
+
+test('wall: a student posts under their own name, not the teacher\'s', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await page.fill('#postBox', 'Welcome everyone');                   // teacher post
+  await page.press('#postBox', 'Enter');
+  await becomeStudentAndJoin(page);
+  await page.evaluate(() => { studentIdentity.name = 'Ava'; });
+  await page.click('[data-student-tab="posts"]');
+  await page.fill('#stuPostBox', 'Hi class, Ava here');
+  await page.click('#stuPostBtn');
+  const posts = page.locator('#studentTabBody .student-post');
+  await expect(posts).toHaveCount(2);
+  await expect(posts.first()).toContainText('Ava');
+  await expect(posts.first()).toContainText('Hi class, Ava here');
+  await expect(posts.first()).toContainText('(you)');
+  await expect(posts.nth(1)).toContainText('Welcome everyone');
+  await expect(posts.nth(1)).toContainText('teacher');
+  // the teacher sees the student's name on the student's post
+  await page.evaluate(() => { uiMode = 'teacher'; tab = 'activity'; route(); render(); });
+  const tposts = page.locator('#classView .post');
+  await expect(tposts.filter({ hasText: 'Hi class, Ava here' })).toContainText('Ava');
+  await expect(tposts.filter({ hasText: 'Hi class, Ava here' })).not.toContainText('Teacher');
+  expect(errors).toEqual([]);
+});
+
+test('wall: no post box when the teacher turns student posts off; students can delete their own post', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await becomeStudentAndJoin(page);
+  await page.click('[data-student-tab="posts"]');
+  await page.fill('#stuPostBox', 'oops');
+  await page.click('#stuPostBtn');
+  await page.locator('#studentTabBody [data-delwall]').first().click();      // confirm() is auto-accepted
+  await expect(page.locator('#studentTabBody .student-post')).toHaveCount(0);
+  await page.evaluate(() => { classes[0].settings.studentsCanPost = false; save(); renderStudentClass(); });
+  await expect(page.locator('#stuPostBox')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
