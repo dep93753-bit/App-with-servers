@@ -335,3 +335,23 @@ test('wall: no post box when the teacher turns student posts off; students can d
   await expect(page.locator('#stuPostBox')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('teacher mode never shows a class you only joined as a student', async ({ page }) => {
+  const errors = await openApp(page);
+  // a class this account joined as a student (it belongs to another teacher, delivered from the cloud)
+  await page.evaluate(() => {
+    applyRemoteClass({ id: 'other1', name: 'Mr. Smith Science', code: 'SMITH00001', created: Date.now(), settings: { studentsCanPost: true, wallVisible: true },
+      posts: [{ id: 1, text: 'Lab on Friday', time: Date.now() }], assignments: [], shared: [], qsets: [], teacher: { name: 'Mr. Smith', photo: '' } });
+    activeId = 'other1'; uiMode = 'teacher'; route(); render();
+  });
+  await expect(page.locator('#ownedList')).not.toContainText('Mr. Smith Science');
+  await expect(page.locator('#classList')).not.toContainText('Mr. Smith Science');
+  await expect(page.locator('#classView')).not.toContainText('Lab on Friday');      // not opened, can't post or edit
+  await expect(page.locator('#firstClass')).toBeVisible();                         // no classes of your own yet
+  // with a class of your own, that one opens instead
+  await createClass(page, 'My Class');
+  await page.evaluate(() => { activeId = 'other1'; render(); });
+  await expect(page.locator('#classView h1')).toHaveText('My Class');
+  await expect(page.locator('#ownedList .cls')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});

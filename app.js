@@ -144,7 +144,9 @@ function leaderboardFor(c) {
 /* ===================== Helpers ===================== */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const cur = () => classes.find(c => c.id === activeId);
+// The teacher screens only ever open classes this account owns -- never a class it joined as a student
+// (those belong to another teacher; they're shown only in student mode).
+const cur = () => classes.find(c => c.id === activeId && !c.remote);
 /* Motion animations. If the library didn't load, or the device has "reduce motion" on, nothing animates. */
 const FX = (() => {
   const M = () => (!window.Motion || matchMedia('(prefers-reduced-motion: reduce)').matches) ? null : window.Motion;
@@ -484,13 +486,15 @@ function showAssignmentStats(a) {
 /* ===================== Teacher: main render ===================== */
 function render() {
   $('#classes').classList.toggle('railclosed', !railOpen);
+  const own = classes.filter(x => !x.remote);
+  if (!cur() && own.length) activeId = own.slice().sort((a, b) => (b.opened || 0) - (a.opened || 0))[0].id;   // never land on a joined class
   const btn = c => `<button class="cls ${c.id === activeId ? 'on' : ''}" data-id="${c.id}">${esc(c.name)}</button>`;
-  $('#ownedList').innerHTML = classes.length ? classes.map(btn).join('') : '<div class="hint">No classes yet</div>';
+  $('#ownedList').innerHTML = own.length ? own.map(btn).join('') : '<div class="hint">No classes yet</div>';
   $('#ownedList').classList.toggle('closed', !ownOpen);
   $('#ownBtn').classList.toggle('closed', !ownOpen);
   $('#ownBtn').setAttribute('aria-expanded', ownOpen);
-  $('#ownCount').textContent = '(' + classes.length + ')';
-  const recent = classes.filter(c => c.opened).sort((a, b) => b.opened - a.opened).slice(0, 3);
+  $('#ownCount').textContent = '(' + own.length + ')';
+  const recent = own.filter(c => c.opened).sort((a, b) => b.opened - a.opened).slice(0, 3);
   $('#classList').innerHTML = recent.length ? recent.map(btn).join('') : '<div class="hint" style="padding-left:10px">Classes you open show up here</div>';
   const v = $('#classView'), c = cur();
   if (!c) {
@@ -519,7 +523,7 @@ function render() {
       </div>`;
       body += listHtml(c.assignments, 'assignments', 'No assignments yet. Use "Assign quiz" above to add one.', { showStats: true });
     }
-    const picker = `<div class="classpick"><select id="classPick" aria-label="Switch class">${classes.map(x => `<option value="${x.id}" ${x.id === activeId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="__new">+ Create class</option></select></div>`;
+    const picker = `<div class="classpick"><select id="classPick" aria-label="Switch class">${own.map(x => `<option value="${x.id}" ${x.id === activeId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="__new">+ Create class</option></select></div>`;
     v.innerHTML = `${picker}<div class="ctop"><h1>${esc(c.name)}</h1><div class="tools"><button class="codechip" id="joinBtn" title="Show and copy the join code"><small>Join code</small><b>${esc(c.code)}</b><i class='bx bx-copy'></i></button><i class='bx bx-list-check' id="qsShortcut" title="Question sets" tabindex="0" style="cursor:pointer"></i><i class='bx bx-cog' id="gear" title="Teacher settings" tabindex="0"></i></div></div>
       <div class="row"><div class="tabs">${['activity','dashboard','assignments'].map(t => `<button data-tab="${t}" class="${tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div><div class="tabbody">${body}</div>`;
   }
