@@ -14,11 +14,11 @@ window.Cloud = (function () {
   const noop = async () => null, off = () => () => {};
   const api = {
     enabled: false, uid: null, user: null, profile: null, ready: Promise.resolve(false), status: 'offline', lastError: '',
-    publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop,
+    publishClass: noop, fetchClass: noop, deleteClass: noop, joinClass: noop, submitScore: noop, saveQsets: noop, removeStudent: noop, saveDone: noop,
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=14'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=15'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -72,7 +72,7 @@ window.Cloud = (function () {
       if (prof.role === 'teacher') {
         if (!L.getItem('adminhub_classes_v1')) {
           const snap = await db.collection('classes').where('ownerUid', '==', user.uid).get();
-          const cls = snap.docs.map(d => { const c = d.data(); return { id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings || {}, posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [], students: [], opened: Date.now(), setupDone: true }; });
+          const cls = snap.docs.map(d => { const c = d.data(); return { id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings || {}, posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [], blocked: c.blocked || [], students: [], opened: Date.now(), setupDone: true }; });
           if (cls.length) L.setItem('adminhub_classes_v1', JSON.stringify(cls));
         }
         if (!L.getItem('adminhub_questions_v2') && prof.qsets && prof.qsets.length) L.setItem('adminhub_questions_v2', JSON.stringify(prof.qsets));
@@ -117,6 +117,7 @@ window.Cloud = (function () {
       id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings,
       posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [],
       leaderboard: c.leaderboard || [],          // ranked names + correct answers, only filled while the teacher has it switched on
+      blocked: c.blocked || [],                  // account ids of removed students who may not rejoin (enforced by firestore.rules)
       qsets: qsets || [], ownerUid: api.uid,
       teacher: { name: (api.profile && api.profile.displayName) || 'Teacher', photo: (api.profile && api.profile.photo) || '' }
     });
@@ -134,10 +135,14 @@ window.Cloud = (function () {
   api.fetchClass = guard(async code => { const s = await classRef(code).get(); return s.exists ? s.data() : null; });
   api.joinClass = guard(async (code, st) => {
     await classRef(code).collection('students').doc(api.uid).set(
-      { sid: st.sid, name: String(st.name || '').slice(0, 30), joinedAt: st.joinedAt || Date.now(), lastSeen: Date.now() });
+      { sid: st.sid, name: String(st.name || '').slice(0, 30), joinedAt: st.joinedAt || Date.now(), lastSeen: Date.now(), done: (st.done || []).slice(0, 300) });
   });
   // Teacher removes a student from the class roster (the rules let the class owner delete roster entries).
   api.removeStudent = guard(async (code, uid) => { await classRef(code).collection('students').doc(uid).delete(); });
+  // Student ticks written assignments off; the teacher sees them on the roster.
+  api.saveDone = guard(async (code, ids) => {
+    await classRef(code).collection('students').doc(api.uid).set({ done: (ids || []).slice(0, 300), lastSeen: Date.now() }, { merge: true });
+  });
   api.submitScore = guard(async (code, r) => {
     await classRef(code).collection('scores').add({
       uid: api.uid, sid: r.sid, name: String(r.name || '').slice(0, 30), game: r.game, quizId: String(r.quizId || 'preset'),
@@ -152,7 +157,7 @@ window.Cloud = (function () {
     return () => { dead = true; unsub(); };
   };
   api.watchClass    = watch(classRef, s => (s.exists ? s.data() : null));
-  api.watchStudents = watch(code => classRef(code).collection('students'), s => s.docs.map(d => d.data()));
+  api.watchStudents = watch(code => classRef(code).collection('students'), s => s.docs.map(d => ({ ...d.data(), uid: d.id })));
   api.watchScores   = watch(code => classRef(code).collection('scores'),   s => s.docs.map(d => d.data()));
   return api;
 })();

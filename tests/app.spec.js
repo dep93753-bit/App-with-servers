@@ -197,3 +197,33 @@ test('questions export for Blooket (.csv) and Kahoot (.xlsx)', async ({ page }) 
   expect(raw).toContain('<c r="A9"><v>1</v></c>');                         // first question on row 9
   expect(errors).toEqual([]);
 });
+
+test('teacher sees which students ticked off a written assignment', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await page.click('#classView [data-tab="assignments"]');
+  await page.click('#assignTextBtn');
+  await page.fill('#ask', 'Read chapter 4');
+  await page.click('#modal [data-ok]');
+  const id = await page.evaluate(() => classes[0].assignments[0].id);
+  // as it arrives from the cloud roster: Ava ticked it off, Ben didn't
+  await addStudents(page, [{ id: 's1', uid: 'u1', name: 'Ava', done: [id] }, { id: 's2', uid: 'u2', name: 'Ben', done: [] }]);
+  await expect(page.locator('#classView .post').first()).toContainText('1/2 done');
+  expect(errors).toEqual([]);
+});
+
+test('removing a student blocks them, and the teacher can let them back in', async ({ page }) => {
+  const errors = await openApp(page);
+  await createClass(page);
+  await addStudents(page, [{ id: 's1', uid: 'u1', name: 'Ava' }, { id: 's2', uid: 'u2', name: 'Ben' }]);
+  await page.evaluate(() => showSettings());
+  await page.click('#sr');
+  await page.click('#modal [data-rm="s2"]');
+  expect(await page.evaluate(() => classes[0].blocked)).toEqual(['u2']);
+  await expect(page.locator('#modal [data-unblock="u2"]')).toBeVisible();
+  await expect(page.locator('#modal')).toContainText('Ben');
+  await page.click('#modal [data-unblock="u2"]');
+  expect(await page.evaluate(() => classes[0].blocked)).toEqual([]);
+  await expect(page.locator('#modal [data-unblock]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

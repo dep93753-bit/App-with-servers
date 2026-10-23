@@ -7,6 +7,10 @@ service cloud.firestore {
       return signedIn() &&
         get(/databases/$(database)/documents/classes/$(code)).data.ownerUid == request.auth.uid;
     }
+    // Students the teacher removed AND blocked (their account ids are in the class's "blocked" list).
+    function isBlocked(code) {
+      return request.auth.uid in get(/databases/$(database)/documents/classes/$(code)).data.get('blocked', []);
+    }
 
     // Each person's own profile (name, role, photo, saved question bank).
     match /users/{uid} {
@@ -14,8 +18,9 @@ service cloud.firestore {
     }
 
     match /classes/{code} {
-      // Anyone signed in can load a class IF they know its join code. Nobody can list all classes.
-      allow get: if signedIn();
+      // Anyone signed in can load a class IF they know its join code (unless the teacher blocked them).
+      // Nobody can list all classes.
+      allow get: if signedIn() && (resource == null || !(request.auth.uid in resource.data.get('blocked', [])));
       // A teacher can list only their own classes (to restore them on a new device).
       allow list: if signedIn() && resource.data.ownerUid == request.auth.uid;
       // Only the teacher who created a class can change or delete it.
@@ -24,17 +29,19 @@ service cloud.firestore {
                     && request.resource.data.ownerUid == request.auth.uid;
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
-      // Roster: a student writes only their own entry; only the teacher reads it.
+      // Roster: a student writes only their own entry (name, and which assignments they ticked off);
+      // only the teacher reads it. Blocked students can't rejoin.
       match /students/{uid} {
-        allow create, update: if signedIn() && request.auth.uid == uid
+        allow create, update: if signedIn() && request.auth.uid == uid && !isBlocked(code)
                               && request.resource.data.name is string
                               && request.resource.data.name.size() <= 30;
         allow read, delete: if isOwner(code);
       }
 
       // Scores: a student can add their own results but never edit or read others; only the teacher reads.
+      // Blocked students can't add any.
       match /scores/{id} {
-        allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid && !isBlocked(code)
                       && request.resource.data.name is string
                       && request.resource.data.name.size() <= 30;
         allow read, delete: if isOwner(code);
