@@ -15,6 +15,7 @@ window.addEventListener('error', function (e) {
 });
 
 let nav = 'classes';
+let devOpen = false;                       // developer page showing (developer account only)
 const VIEWS = ['classes', 'ai', 'questions', 'analytics'];
 
 /* ===================== Identity / mode ===================== */
@@ -719,6 +720,62 @@ function exportKahoot(qs) {
   toast(cut ? 'Downloaded for Kahoot — ' + cut + ' long bit' + (cut === 1 ? ' was' : 's were') + ' shortened to fit Kahoot’s limits' : 'Downloaded ' + qs.questions.length + ' questions for Kahoot');
 }
 
+/* ===================== Developer page (only the developer's account; tap the seesaw logo) ===================== */
+function setDev(on) {
+  devOpen = on; document.body.classList.toggle('dev-on', on);
+  route(); if (on) { scrollTo(0, 0); renderDev(); }
+}
+document.querySelectorAll('[data-devtoggle]').forEach(el => el.addEventListener('click', e => {
+  if (!Cloud.isDev()) return;                  // everyone else: the logo does nothing, like before
+  e.preventDefault(); e.stopPropagation(); setDev(!devOpen);
+}));
+const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+function devBars(rows, fmtLabel) {             // rows: [{label, value}] -> simple bar chart
+  const max = Math.max(1, ...rows.map(r => r.value));
+  return `<div class="dev-bars">${rows.map(r => `<div class="dev-bar" title="${esc(r.label)}: ${r.value}"><span style="height:${Math.round(r.value / max * 100)}%"></span><b>${r.value || ''}</b><small>${esc(fmtLabel(r.label))}</small></div>`).join('')}</div>`;
+}
+async function renderDev() {
+  const box = $('#devBody');
+  const head = `<div class="pagehead"><div><h1>Developer</h1><p>Numbers from every signed-in account. Counts only — no names or emails.</p></div>
+    <button class="btn ghost" id="devRefresh"><i class='bx bx-refresh'></i> Refresh</button></div>`;
+  box.innerHTML = head + `<div class="card"><div class="none">Loading…</div></div>`;
+  $('#devRefresh').onclick = renderDev;
+  let list;
+  try { list = await Cloud.devStats(); }
+  catch (e) {
+    box.innerHTML = head + `<div class="card"><div class="none">Firebase didn’t allow this (${esc(e.code || e.message)}).<br>Publish the latest <b>firestore.rules</b> in the Firebase console, and sign in with Google as hatfieldnathan@oacsd.org.</div></div>`;
+    $('#devRefresh').onclick = renderDev; return;
+  }
+  if (!devOpen) return;
+  const now = Date.now(), today = utcDay(), sum = f => list.reduce((n, u) => n + (Number(f(u)) || 0), 0);
+  const last = n => Array.from({ length: n }, (_, i) => utcDay(now - (n - 1 - i) * 864e5));
+  const teachers = list.filter(u => u.role === 'teacher').length, students = list.filter(u => u.role === 'student').length;
+  const active = d => list.filter(u => (u.lastSeen || 0) >= now - d * 864e5).length;
+  const days14 = last(14), days7 = last(7);
+  const games = {}; list.forEach(u => Object.entries(u.games || {}).forEach(([g, n]) => { games[g] = (games[g] || 0) + (Number(n) || 0); }));
+  const topGames = Object.entries(games).sort((a, b) => b[1] - a[1]);
+  const phones = list.filter(u => u.device === 'phone').length, installed = list.filter(u => u.installed).length;
+  const card = (n, label) => `<div class="tstat"><b>${n}</b><small>${label}</small></div>`;
+  const dayLabel = k => new Date(k + 'T12:00:00Z').toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+  box.innerHTML = head + `
+    <div class="sec">Users</div>
+    <div class="today">${card(list.length, 'unique accounts')}${card(active(1), 'active today')}${card(active(7), 'active this week')}${card(active(30), 'active this month')}</div>
+    <div class="today">${card(teachers, 'teachers')}${card(students, 'students')}${card(list.filter(u => (u.firstSeen || 0) >= now - 7 * 864e5).length, 'new this week')}${card(pct(active(7), list.length), 'came back this week')}</div>
+    <div class="card"><h4 class="dev-h">New accounts per day</h4>${devBars(days14.map(k => ({ label: k, value: list.filter(u => u.firstSeen && utcDay(u.firstSeen) === k).length })), dayLabel)}</div>
+    <div class="card"><h4 class="dev-h">Active accounts per day</h4>${devBars(days14.map(k => ({ label: k, value: list.filter(u => u.days && k in u.days).length })), dayLabel)}</div>
+    <div class="sec">Games</div>
+    <div class="today">${card(sum(u => u.plays), 'games played')}${card(sum(u => (u.days || {})[today]), 'played today')}${card(sum(u => days7.reduce((n, k) => n + (Number((u.days || {})[k]) || 0), 0)), 'played this week')}${card(list.length ? (sum(u => u.plays) / list.length).toFixed(1) : '—', 'games per account')}</div>
+    <div class="card"><h4 class="dev-h">Plays per day</h4>${devBars(days14.map(k => ({ label: k, value: sum(u => (u.days || {})[k]) })), dayLabel)}</div>
+    <div class="card"><h4 class="dev-h">Most played games</h4>${topGames.length ? topGames.map(([g, n], i) => `<div class="dev-row"><span>${i + 1}. ${esc(gameName(g))}</span><div class="an-bar"><span style="width:${Math.round(n / topGames[0][1] * 100)}%"></span></div><b>${n}</b></div>`).join('') : '<div class="none">No games played yet</div>'}</div>
+    <div class="sec">Classes & quizzes</div>
+    <div class="today">${card(sum(u => u.classes), 'classes')}${card(sum(u => u.sets), 'question sets')}${card(sum(u => u.aiQuizzes), 'AI quizzes made')}${card(teachers ? (sum(u => u.classes) / teachers).toFixed(1) : '—', 'classes per teacher')}</div>
+    <div class="sec">Devices</div>
+    <div class="today">${card(phones, 'on phones / tablets')}${card(list.length - phones, 'on computers')}${card(installed, 'installed the app')}${card(pct(installed, list.length), 'install rate')}</div>
+    <p class="dev-note">Accounts show up here once they open Recess after this update. “Active” and per-day numbers use UTC days.</p>`;
+  $('#devRefresh').onclick = renderDev;
+}
+
 function openProfile() {
   const p = Cloud.profile || {}; let photo = p.photo || '';
   const oldRole = p.role === 'student' ? 'student' : 'teacher'; let role = oldRole;
@@ -762,6 +819,12 @@ $('#appLogout').onclick = e => { e.preventDefault(); Cloud.signOut(); };
 
 /* ===================== Router ===================== */
 function route() {
+  const dv = document.getElementById('devView');
+  if (devOpen) {                               // developer page covers everything until the seesaw is tapped again
+    document.querySelectorAll('main .view').forEach(v => v.classList.toggle('on', v === dv));
+    $('#studentClassTabs').hidden = true; paintBottomBar(); return;
+  }
+  if (dv) dv.classList.remove('on');
   const tm = document.querySelector('.side-menu.teacher-menu'), sm = document.querySelector('.side-menu.student-menu');
   if (tm) tm.style.display = uiMode === 'teacher' ? '' : 'none';
   if (sm) sm.style.display = uiMode === 'student' ? '' : 'none';
@@ -783,6 +846,7 @@ function route() {
   updateStudentSidebarExtras(); paintBottomBar();
 }
 function goNav(v) {                       // teacher: switch page (sidebar or phone bottom bar)
+  if (devOpen) setDev(false);
   const changed = nav !== v; nav = v;
   if (v === 'ai') openAITab();
   if (v === 'questions') renderQuestionSets();
@@ -929,6 +993,7 @@ function renderStudentTabs() {
       return `<button class="ctab ${active === id ? 'on' : ''}" data-class-tab="${esc(id)}"><i class='bx bxs-graduation'></i>${esc(c ? c.name : 'Class unavailable')}</button>`; }).join('')
     + `<button class="ctab add ${active === '__join' ? 'on' : ''}" data-class-tab="__join"><i class='bx bx-plus'></i>Join class</button>`;
   box.querySelectorAll('[data-class-tab]').forEach(b => { b.onclick = () => {
+    if (devOpen) setDev(false);
     if (b.dataset.classTab === '__join') studentJoinOpen = true; else { openStudentClass(b.dataset.classTab); cloudWatchStudent(); }
     route();
   }; });
@@ -1672,6 +1737,7 @@ function openGame(type, qs) {
     frame.contentWindow.postMessage({ type: 'loadQuiz', questions: qs_.questions, quizId: qs_.id }, '*');
   };
   gameRun = { game: type, quizId: qs_.id, answers: [] };
+  Cloud.trackPlay(type);
   frame.src = (GAMES.find(g => g.id === type) || GAMES[0]).file;
   $('#battleWrap').classList.add('show');
   document.body.style.overflow = 'hidden';
@@ -1882,6 +1948,7 @@ async function generateFromFlow() {
   if (!data || !data.questions.length) { logAIError('Bad JSON', new Error('No questions'), raw.slice(0, 400)); botSay('Invalid JSON. Try again.'); setWaiting(false); chatFlow.step = 'difficulty'; updateChips(); return; }
   data.title = data.title || chatFlow.topic || 'Quiz';
   addQuestionSet({ title: data.title, questions: data.questions, grade: chatFlow.grade, difficulty: chatFlow.difficulty });
+  Cloud.trackAI();
   botSay('Saved "' + data.title + '". Head to Questions tab.');
   setWaiting(false); chatFlow.step = 'done'; updateChips();
 }
@@ -2179,3 +2246,10 @@ if (uiMode === 'teacher') checkPuter();
 setTimeout(() => { let done = false; try { done = !!localStorage.getItem(TOUR_KEY()); } catch (e) {} if (!done && !tour) startTour(); }, 900);   // first time here   // quiet: only sets the AI badge, never opens a window
 cloudPublishSoon();
 cloudWatchStudent();
+Cloud.trackVisit({                           // one usage record per account (counts only; see the developer page)
+  role: (Cloud.profile && Cloud.profile.role) || uiMode,
+  device: matchMedia('(pointer: coarse)').matches || innerWidth < 700 ? 'phone' : 'computer',
+  installed: isInstalled(),
+  classes: classes.filter(c => !c.remote).length,
+  sets: qsets.filter(q => !q._remote && q.id !== 'qs_preset').length
+});

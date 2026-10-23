@@ -613,3 +613,21 @@ html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
 .exp-pick{display:grid;gap:10px;margin-bottom:16px}
 .exp-pick .gcard{text-align:left;display:block;width:100%}
 .exp-pick .gcard small{display:block;margin-top:4px}
+
+/* ===== developer page ===== */
+.brand-logo img,.nav-logo{transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+body.dev-on .brand-logo img,body.dev-on .nav-logo{transform:scaleX(-1)}
+.nav-logo{vertical-align:-6px;margin-right:6px}
+#devView .card{margin-bottom:16px;padding:16px}
+.dev-h{margin:0 0 10px;font-size:15px}
+.dev-bars{display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:18px}
+.dev-bar{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative}
+.dev-bar span{display:block;width:100%;max-width:34px;background:var(--blue);border-radius:6px 6px 2px 2px;min-height:2px}
+.dev-bar b{position:absolute;top:0;font-size:11px;color:var(--dark)}
+.dev-bar small{font-size:10px;color:var(--dark-grey);margin-top:4px;white-space:nowrap;overflow:hidden;max-width:100%}
+.dev-row{display:grid;grid-template-columns:140px 1fr 50px;gap:10px;align-items:center;padding:6px 0;font-size:14px}
+.dev-row .an-bar{margin:0}
+.dev-row .an-bar span{display:block;height:100%;background:var(--blue);border-radius:6px}
+.dev-row b{text-align:right}
+.dev-note{color:var(--dark-grey);font-size:12px;margin:4px 0 20px}
+@media (max-width:700px){.dev-bar small{display:none}.dev-row{grid-template-columns:100px 1fr 40px}}
