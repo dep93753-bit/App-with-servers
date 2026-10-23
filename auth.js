@@ -70,7 +70,7 @@ window.Gate = (function () {
     if (!name) return say('agSetErr', { message: 'Please enter a display name.' });
     if (!role) return say('agSetErr', { message: 'Choose Teacher or Student.' });
     const b = $('agFinish'); b.disabled = true;
-    try { await Cloud.saveProfile({ displayName: name, role, photo, createdAt: Date.now() }); await Cloud.finishSetup(); }
+    try { await Cloud.saveProfile({ displayName: name, role, photo, createdAt: Clock.now() }); await Cloud.finishSetup(); }
     catch (er) { say('agSetErr', er); b.disabled = false; }
   };
 
