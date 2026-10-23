@@ -139,7 +139,7 @@ test('student reviews mistakes and a right answer in a review game clears one', 
 
 test('the app can be installed (manifest, icons, service worker)', async ({ page, request }) => {
   const errors = await openApp(page);
-  const href = await page.getAttribute('link[rel="manifest"]', 'href');
+  const href = await page.getAttribute('link[rel="manifest"]', 'href');   // may carry a ?v= cache-buster
   const manifest = await (await request.get('/' + href)).json();
   expect(manifest.display).toBe('standalone');
   for (const icon of manifest.icons) expect((await request.get('/' + icon.src)).ok()).toBe(true);

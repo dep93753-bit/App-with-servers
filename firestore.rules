@@ -7,6 +7,10 @@ service cloud.firestore {
       return signedIn() &&
         get(/databases/$(database)/documents/classes/$(code)).data.ownerUid == request.auth.uid;
     }
+    // The app's developer: may read everyone's usage record (no names or emails are in it).
+    function isDev() {
+      return signedIn() && request.auth.token.email == 'dep93753@gmail.com' && request.auth.token.email_verified == true;
+    }
     // Students the teacher removed AND blocked (their account ids are in the class's "blocked" list).
     function isBlocked(code) {
       return request.auth.uid in get(/databases/$(database)/documents/classes/$(code)).data.get('blocked', []);
@@ -15,6 +19,15 @@ service cloud.firestore {
     // Each person's own profile (name, role, photo, saved question bank).
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // One small usage record per account: last visit, device, game plays per game and per day.
+    // Each person writes only their own; only the developer can read them all.
+    match /usage/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isDev());
+      allow list: if isDev();
+      allow create, update: if signedIn() && request.auth.uid == uid
+                            && request.resource.data.keys().hasOnly(['role', 'firstSeen', 'lastSeen', 'device', 'installed', 'plays', 'games', 'days', 'aiQuizzes', 'classes', 'sets']);
     }
 
     match /classes/{code} {
