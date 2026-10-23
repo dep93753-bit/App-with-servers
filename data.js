@@ -19,7 +19,7 @@ window.Cloud = (function () {
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=17'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=18'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -32,7 +32,23 @@ window.Cloud = (function () {
   const auth = firebase.auth(), db = firebase.firestore(), L = localStorage;
   const ts = () => firebase.firestore.FieldValue.serverTimestamp();
   const clean = o => JSON.parse(JSON.stringify(o));
-  const lastSig = {};
+  // What each class / the question bank looked like when last saved, kept on this device, so opening the
+  // app doesn't re-save things that haven't changed (each save is a billed Firestore write).
+  const SIGS = 'adminhub_pubsig';
+  const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36) + '.' + s.length; };
+  const lastSig = (() => { try { return JSON.parse(L.getItem(SIGS) || '{}'); } catch (e) { return {}; } })();
+  const saveSigs = () => { try { L.setItem(SIGS, JSON.stringify(lastSig)); } catch (e) {} };
+
+  /* ---------- counting reads & writes (an estimate for the developer page) ---------- */
+  // Counts wait on this device and are sent along with the next usage update, so counting costs no extra writes.
+  const PENDING = 'adminhub_usage_pending', VISIT = 'adminhub_usage_visit', FLUSHED = 'adminhub_usage_flushed';
+  const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+  let pend = null;
+  const loadPend = () => pend || (pend = (() => { try { return JSON.parse(L.getItem(PENDING) || 'null') || {}; } catch (e) { return {}; } })());
+  const savePend = () => { try { L.setItem(PENDING, JSON.stringify(pend)); } catch (e) {} };
+  const bump = (field, n, key = dayKey()) => { const p = loadPend(); p[field] = p[field] || {}; p[field][key] = (p[field][key] || 0) + n; savePend(); };
+  const R = n => bump('reads', Math.max(1, n | 0));             // Firestore bills at least 1 read per query
+  const W = (n = 1) => bump('writes', n);
   const report = (status, msg) => { api.status = status; api.lastError = msg || ''; window.dispatchEvent(new Event('cloudstatus')); };
   api.report = report; report('connecting');
 
@@ -55,7 +71,7 @@ window.Cloud = (function () {
   api.signOut = async () => { await auth.signOut(); location.reload(); };
   api.saveProfile = async p => {                 // {displayName, role, photo}
     const u = auth.currentUser;
-    await userRef(u.uid).set(clean(p), { merge: true });
+    await userRef(u.uid).set(clean(p), { merge: true }); W();
     api.profile = { ...(api.profile || {}), ...p };
     cacheProfile(u.uid, api.profile);
     if (p.displayName) u.updateProfile({ displayName: p.displayName }).catch(() => {});
@@ -72,7 +88,7 @@ window.Cloud = (function () {
       }
       if (prof.role === 'teacher') {
         if (!L.getItem('adminhub_classes_v1')) {
-          const snap = await db.collection('classes').where('ownerUid', '==', user.uid).get();
+          const snap = await db.collection('classes').where('ownerUid', '==', user.uid).get(); R(snap.size);
           const cls = snap.docs.map(d => { const c = d.data(); return { id: c.id, name: c.name, code: c.code, created: c.created, settings: c.settings || {}, posts: c.posts || [], shared: c.shared || [], assignments: c.assignments || [], blocked: c.blocked || [], students: [], opened: Date.now(), setupDone: true }; });
           if (cls.length) L.setItem('adminhub_classes_v1', JSON.stringify(cls));
         }
@@ -90,7 +106,7 @@ window.Cloud = (function () {
   async function loadProfile(uid) {                 // {ok:true, prof|null} or {ok:false, err}; retries a few times
     let err;
     for (let i = 0; i < 3; i++) {
-      try { const s = await userRef(uid).get(); return { ok: true, prof: s.exists ? s.data() : null }; }
+      try { const s = await userRef(uid).get(); R(1); return { ok: true, prof: s.exists ? s.data() : null }; }
       catch (e) { err = e; if (i < 2) await new Promise(r => setTimeout(r, 1500)); }
     }
     return { ok: false, err };
@@ -122,71 +138,116 @@ window.Cloud = (function () {
       qsets: qsets || [], ownerUid: api.uid,
       teacher: { name: (api.profile && api.profile.displayName) || 'Teacher', photo: (api.profile && api.profile.photo) || '' }
     });
-    const sig = JSON.stringify(payload);
+    const sig = hash(JSON.stringify(payload));
     if (lastSig[c.code] === sig) return null;
-    await classRef(c.code).set({ ...payload, updatedAt: ts() });
-    lastSig[c.code] = sig; return true;
+    await classRef(c.code).set({ ...payload, updatedAt: ts() }); W();
+    lastSig[c.code] = sig; saveSigs(); return true;
   });
   api.saveQsets = guard(async list => {            // teacher's full question bank, so a new device can restore it
-    const sig = JSON.stringify(list);
+    const sig = hash(JSON.stringify(list));
     if (lastSig.__q === sig) return null;
-    await userRef(api.uid).set({ qsets: clean(list) }, { merge: true }); lastSig.__q = sig; return true;
+    await userRef(api.uid).set({ qsets: clean(list) }, { merge: true }); W(); lastSig.__q = sig; saveSigs(); return true;
   });
-  api.deleteClass = guard(async code => { delete lastSig[code]; await classRef(code).delete(); });
-  api.fetchClass = guard(async code => { const s = await classRef(code).get(); return s.exists ? s.data() : null; });
+  api.deleteClass = guard(async code => { delete lastSig[code]; saveSigs(); await classRef(code).delete(); W(); });
+  api.fetchClass = guard(async code => { const s = await classRef(code).get(); R(1); return s.exists ? s.data() : null; });
   api.joinClass = guard(async (code, st) => {
     await classRef(code).collection('students').doc(api.uid).set(
-      { sid: st.sid, name: String(st.name || '').slice(0, 30), joinedAt: st.joinedAt || Date.now(), lastSeen: Date.now(), done: (st.done || []).slice(0, 300) });
+      { sid: st.sid, name: String(st.name || '').slice(0, 30), joinedAt: st.joinedAt || Date.now(), lastSeen: Date.now(), done: (st.done || []).slice(0, 300) }); W();
   });
   // Teacher removes a student from the class roster (the rules let the class owner delete roster entries).
-  api.removeStudent = guard(async (code, uid) => { await classRef(code).collection('students').doc(uid).delete(); });
+  api.removeStudent = guard(async (code, uid) => { await classRef(code).collection('students').doc(uid).delete(); W(); });
   // Student ticks written assignments off; the teacher sees them on the roster.
   api.saveDone = guard(async (code, ids) => {
-    await classRef(code).collection('students').doc(api.uid).set({ done: (ids || []).slice(0, 300), lastSeen: Date.now() }, { merge: true });
+    await classRef(code).collection('students').doc(api.uid).set({ done: (ids || []).slice(0, 300), lastSeen: Date.now() }, { merge: true }); W();
   });
   api.submitScore = guard(async (code, r) => {
     await classRef(code).collection('scores').add({
       uid: api.uid, sid: r.sid, name: String(r.name || '').slice(0, 30), game: r.game, quizId: String(r.quizId || 'preset'),
       won: !!r.won, quit: !!r.quit, score: Number(r.score) || 0, answers: clean(r.answers || []), time: r.time || Date.now(), at: ts()
-    });
+    }); W();
   });
+
+  const watch = (getRef, map) => (code, cb) => {
+    let unsub = () => {}, dead = false;
+    api.ready.then(ok => { if (!ok || dead) return;
+      unsub = getRef(code).onSnapshot(s => { if (!s.metadata.fromCache) R(s.docChanges ? s.docChanges().length : 1); cb(map(s)); }, e => { console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); }); });
+    return () => { dead = true; unsub(); };
+  };
+  api.watchClass    = watch(classRef, s => (s.exists ? s.data() : null));
+  api.watchStudents = watch(code => classRef(code).collection('students'), s => s.docs.map(d => ({ ...d.data(), uid: d.id })));
+  // Scores only ever get added, so they're kept on this device and only NEW ones are downloaded
+  // (before, every app open re-read every score the class ever played).
+  api.watchScores = (code, cb) => {
+    const KEY = 'adminhub_scores_' + code;
+    let cache = []; try { cache = JSON.parse(L.getItem(KEY) || '[]'); } catch (e) {}
+    const since = cache.reduce((m, d) => Math.max(m, d._at || 0), 0);
+    if (cache.length) setTimeout(() => cb(cache), 0);
+    let unsub = () => {}, dead = false;
+    api.ready.then(ok => { if (!ok || dead) return;
+      let q = classRef(code).collection('scores');
+      if (since) q = q.where('at', '>=', firebase.firestore.Timestamp.fromMillis(since));
+      unsub = q.onSnapshot(s => {
+        if (!s.metadata.fromCache) R(s.docChanges().length);
+        const byId = new Map(cache.map(d => [d._id, d]));
+        s.docs.forEach(d => { const x = d.data(); byId.set(d.id, { ...x, at: null, _id: d.id, _at: x.at && x.at.toMillis ? x.at.toMillis() : 0 }); });
+        cache = [...byId.values()];
+        try { L.setItem(KEY, JSON.stringify(cache)); } catch (e) {}   // too big for this device: it just downloads them all next time
+        cb(cache);
+      }, e => { console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); });
+    });
+    return () => { dead = true; unsub(); };
+  };
 
   /* ---------- usage numbers for the developer page (no names or emails, just counts) ---------- */
   const DEV_EMAIL = 'hatfieldnathan@oacsd.org';
   api.isDev = () => !!(api.user && api.user.emailVerified && (api.user.email || '').toLowerCase() === DEV_EMAIL);
   const usageRef = () => db.collection('usage').doc(api.uid);
-  const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
   const inc = n => firebase.firestore.FieldValue.increment(n);
-  // Tracking never shows errors to people (e.g. before the new rules are published it just does nothing).
   const quiet = fn => async (...a) => { if (!(await api.ready)) return null; try { return await fn(...a); } catch (e) { console.warn('[usage]', e.code || e.message); return null; } };
-  api.trackVisit = quiet(async info => {            // once per app start: {role, device, installed, classes, sets}
-    const ref = usageRef(), snap = await ref.get(), old = snap.exists ? snap.data() : {};
-    const created = Date.parse(api.user.metadata && api.user.metadata.creationTime) || Date.now();
-    const data = { role: info.role, device: info.device, installed: !!(old.installed || info.installed), lastSeen: Date.now(), firstSeen: old.firstSeen || created, days: { [dayKey()]: inc(0) } };
-    if (info.role === 'teacher') { data.classes = info.classes || 0; data.sets = info.sets || 0; }
-    const cutoff = dayKey(Date.now() - 35 * 864e5);                // keep about 5 weeks of daily numbers
-    Object.keys(old.days || {}).filter(k => k < cutoff).forEach(k => { data.days[k] = firebase.firestore.FieldValue.delete(); });
-    await ref.set(data, { merge: true });
+  // Sends everything counted on this device (plays, reads, writes...) in ONE write.
+  const flush = quiet(async (extra = {}) => {
+    const p = loadPend(); pend = {}; savePend();
+    const data = { lastSeen: Date.now(), ...extra };
+    const add = (field, map) => { Object.entries(map || {}).forEach(([k, n]) => { if (n) { data[field] = data[field] || {}; data[field][k] = inc(n); } }); };
+    add('days', p.days); add('games', p.games); add('reads', p.reads);
+    add('writes', { ...(p.writes || {}), [dayKey()]: ((p.writes || {})[dayKey()] || 0) + 1 });   // + this write
+    const plays = Object.values(p.days || {}).reduce((a, b) => a + b, 0);
+    if (plays) data.plays = inc(plays);
+    if (p.ai && p.ai.n) data.aiQuizzes = inc(p.ai.n);
+    try { await usageRef().set(data, { merge: true }); }
+    catch (e) {                                   // keep the counts for next time
+      const q = loadPend(); Object.entries(p).forEach(([f, m]) => Object.entries(m).forEach(([k, n]) => { q[f] = q[f] || {}; q[f][k] = (q[f][k] || 0) + n; })); savePend(); throw e;
+    }
+    try { L.setItem(FLUSHED, String(Date.now())); } catch (e) {}
+    return true;
   });
-  api.trackPlay = quiet(async game => {
-    const g = String(game || 'unknown').replace(/[^a-z0-9]/gi, '').slice(0, 20) || 'unknown';
-    await usageRef().set({ plays: inc(1), games: { [g]: inc(1) }, days: { [dayKey()]: inc(1) }, lastSeen: Date.now() }, { merge: true });
+  const hasPlays = () => Object.keys(loadPend().days || {}).length || Object.keys(loadPend().ai || {}).length;
+  const hasAny = () => Object.keys(loadPend()).some(f => Object.keys(pend[f] || {}).length);
+  const sinceFlush = () => Date.now() - (Number((() => { try { return L.getItem(FLUSHED); } catch (e) { return 0; } })()) || 0);
+  const maybeFlush = leaving => {                 // at most every 10 min; when leaving, game plays go out after 1 min
+    if (!api.enabled || !hasAny()) return;
+    if (sinceFlush() > 10 * 60e3 || (leaving && hasPlays() && sinceFlush() > 60e3)) flush();
+  };
+  // Once per day per device: role, device, etc. (plus whatever was counted since last time) -- one write, no reads.
+  api.trackVisit = quiet(async info => {
+    const today = dayKey(); let seen = null; try { seen = L.getItem(VISIT); } catch (e) {}
+    if (seen === today) return maybeFlush();
+    const extra = { role: info.role, device: info.device, firstSeen: Date.parse(api.user.metadata && api.user.metadata.creationTime) || Date.now(), days: { [today]: inc(0) } };
+    if (info.installed) extra.installed = true;
+    if (info.role === 'teacher') { extra.classes = info.classes || 0; extra.sets = info.sets || 0; }
+    for (let k = 36; k < 66; k++) {               // forget daily numbers older than ~5 weeks (rolling, no read needed)
+      const d = dayKey(Date.now() - k * 864e5);
+      ['days', 'reads', 'writes'].forEach(f => { extra[f] = extra[f] || {}; extra[f][d] = firebase.firestore.FieldValue.delete(); });
+    }
+    if (await flush(extra)) { try { L.setItem(VISIT, today); } catch (e) {} }
   });
-  api.trackAI = quiet(async () => { await usageRef().set({ aiQuizzes: inc(1) }, { merge: true }); });
-  api.devStats = async () => {                       // developer only (firestore.rules refuse everyone else)
+  api.trackPlay = game => { const g = String(game || 'unknown').replace(/[^a-z0-9]/gi, '').slice(0, 20) || 'unknown'; bump('days', 1); bump('games', 1, g); maybeFlush(); };
+  api.trackAI = () => { bump('ai', 1, 'n'); maybeFlush(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') maybeFlush(true); });
+  api.devStats = async () => {                     // developer only (firestore.rules refuse everyone else)
     if (!(await api.ready)) throw new Error('not signed in');
-    const snap = await db.collection('usage').limit(10000).get();
+    const snap = await db.collection('usage').limit(10000).get(); R(snap.size);
     return snap.docs.map(d => d.data());
   };
-
-  const watch = (getRef, map) => (code, cb) => {
-    let unsub = () => {}, dead = false;
-    api.ready.then(ok => { if (!ok || dead) return;
-      unsub = getRef(code).onSnapshot(s => cb(map(s)), e => { console.warn('[Cloud] listener error:', e.code); report('error', 'listener: ' + e.code); }); });
-    return () => { dead = true; unsub(); };
-  };
-  api.watchClass    = watch(classRef, s => (s.exists ? s.data() : null));
-  api.watchStudents = watch(code => classRef(code).collection('students'), s => s.docs.map(d => ({ ...d.data(), uid: d.id })));
-  api.watchScores   = watch(code => classRef(code).collection('scores'),   s => s.docs.map(d => d.data()));
   return api;
 })();

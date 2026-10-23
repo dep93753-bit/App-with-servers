@@ -615,9 +615,20 @@ html{-webkit-tap-highlight-color:rgba(47,101,200,.15)}
 .exp-pick .gcard small{display:block;margin-top:4px}
 
 /* ===== developer page ===== */
-.brand-logo img,.nav-logo{transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
-body.dev-on .brand-logo img,body.dev-on .nav-logo{transform:scaleX(-1)}
-.nav-logo{vertical-align:-6px;margin-right:6px}
+/* The seesaw logo, drawn in CSS: a plank with two handles on a base. For the developer it tips to the other
+   side (and rocks a little before settling) to open the developer page, and tips back to close it. */
+.seesaw{--w:46px;position:relative;display:inline-block;width:var(--w);height:calc(var(--w)*.62);color:var(--blue);cursor:pointer}
+.ss-base{position:absolute;left:34%;bottom:0;width:32%;height:46%;background:currentColor;clip-path:polygon(32% 0,68% 0,100% 100%,0 100%)}
+.ss-plank{position:absolute;left:3%;right:3%;top:40%;height:13%;background:currentColor;border-radius:99px;transform:rotate(-12deg)}
+.ss-plank i{position:absolute;bottom:60%;width:9%;height:150%;background:currentColor;border-radius:99px 99px 0 0}
+.ss-plank i:first-child{left:14%}.ss-plank i:last-child{right:14%}
+body.dev-on .ss-plank{transform:rotate(12deg)}
+.seesaw.rock .ss-plank{animation:ss-tip-right .9s ease-out}
+body:not(.dev-on) .seesaw.rock .ss-plank{animation-name:ss-tip-left}
+@keyframes ss-tip-right{0%{transform:rotate(-12deg)}35%{transform:rotate(15deg)}55%{transform:rotate(6deg)}75%{transform:rotate(13deg)}100%{transform:rotate(12deg)}}
+@keyframes ss-tip-left{0%{transform:rotate(12deg)}35%{transform:rotate(-15deg)}55%{transform:rotate(-6deg)}75%{transform:rotate(-13deg)}100%{transform:rotate(-12deg)}}
+.nav-logo{display:inline-block;margin-right:6px;vertical-align:-3px}
+.nav-logo .seesaw{--w:30px}
 #devView .card{margin-bottom:16px;padding:16px}
 .dev-h{margin:0 0 10px;font-size:15px}
 .dev-bars{display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:18px}

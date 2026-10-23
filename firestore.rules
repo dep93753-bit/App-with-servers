@@ -27,7 +27,7 @@ service cloud.firestore {
       allow get: if signedIn() && (request.auth.uid == uid || isDev());
       allow list: if isDev();
       allow create, update: if signedIn() && request.auth.uid == uid
-                            && request.resource.data.keys().hasOnly(['role', 'firstSeen', 'lastSeen', 'device', 'installed', 'plays', 'games', 'days', 'aiQuizzes', 'classes', 'sets']);
+                            && request.resource.data.keys().hasOnly(['role', 'firstSeen', 'lastSeen', 'device', 'installed', 'plays', 'games', 'days', 'aiQuizzes', 'classes', 'sets', 'reads', 'writes']);
     }
 
     match /classes/{code} {
