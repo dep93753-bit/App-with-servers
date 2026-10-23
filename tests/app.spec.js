@@ -278,8 +278,22 @@ test.describe('loading screen', () => {
     await expect(page.locator('#splash .worm')).toBeVisible();
     await expect(page.locator('#splash .worm path')).toHaveCount(9);            // one stroke per letter
     // letters start hidden and finish fully drawn
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('#splash .worm path:last-child')).strokeDashoffset), { timeout: 3000 }).toMatch(/^0(px)?$/);
+    await page.waitForFunction(() => {                                     // checked every frame, so it can't miss it
+      const el = document.querySelector('#splash .worm path:last-child');
+      return el && /^0(px)?$/.test(getComputedStyle(el).strokeDashoffset);
+    }, null, { polling: 'raf', timeout: 3000 });
     await expect(page.locator('#splash')).toHaveCount(0, { timeout: 5000 });
+  });
+
+  test('the loading screen stays up while account data is still loading', async ({ page }) => {
+    await page.route(/gstatic\.com\/firebasejs|js\.puter\.com|cdn\.jsdelivr\.net/, r => r.abort());
+    // pretend the first class data takes 3.5 s to arrive
+    await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => window.Splash.wait(new Promise(r => setTimeout(r, 3500)))));
+    await page.goto('/index.html');
+    await page.waitForTimeout(2900);                                      // name finished writing long ago
+    await expect(page.locator('#splash')).toHaveCount(1);                 // ...but still waiting for data
+    await expect(page.locator('#splash.slow .splash-msg')).toBeVisible(); // "Loading your account…"
+    await expect(page.locator('#splash')).toHaveCount(0, { timeout: 4000 });
   });
 });
 

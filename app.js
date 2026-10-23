@@ -2319,3 +2319,4 @@ Cloud.trackVisit({                           // one usage record per account (co
   classes: classes.filter(c => !c.remote).length,
   sets: qsets.filter(q => !q._remote && q.id !== 'qs_preset').length
 });
+if (window.Splash) Splash.ready();         // the app is on screen; the loading screen closes once first data is in
