@@ -51,7 +51,7 @@ let joinedIds = [], studentJoinOpen = false;          // studentJoinOpen = the "
 try { joinedIds = JSON.parse(localStorage.getItem(JKEY) || '[]'); } catch (e) {}
 if (studentSession && !joinedIds.includes(studentSession.classId)) joinedIds.push(studentSession.classId);   // saved before tabs existed
 function saveJoined() { try { localStorage.setItem(JKEY, JSON.stringify(joinedIds)); } catch (e) {} }
-function openStudentClass(id) { studentSession = { classId: id, joinedAt: Date.now(), studentId: studentIdentity.id }; saveStudentSession(); studentJoinOpen = false; studentTab = 'home'; }
+function openStudentClass(id) { studentSession = { classId: id, joinedAt: Clock.now(), studentId: studentIdentity.id }; saveStudentSession(); studentJoinOpen = false; studentTab = 'home'; }
 
 /* ===================== Storage ===================== */
 const KEY = 'adminhub_classes_v1';
@@ -88,7 +88,7 @@ function scoresMap(classId) {            // { studentId: [scores, newest first] 
 function getStudentScores(classId, studentId) { return scoresMap(classId)[studentId] || []; }
 function getAllClassScores(classId) { return [].concat(...Object.values(scoresMap(classId))); }
 function recordScore(classId, game, quizId, won, score, answers, quit) {
-  const now = Date.now();
+  const now = Clock.now();
   try {
     const all = JSON.parse(localStorage.getItem(SCORE_KEY) || '{}');
     let cm = all[classId];
@@ -198,8 +198,8 @@ function ask(title, sub, label, cb, initial = '') {
 /* ===================== Teacher: class mgmt ===================== */
 function createClass() {
   ask('Create class', 'Give your class a name. It gets its own join code.', 'Class name', name => {
-    const c = { id: Date.now().toString(36), name, code: makeCode(), created: Date.now(),
-      settings: { studentsCanPost: true, wallVisible: true }, opened: Date.now(),
+    const c = { id: Clock.now().toString(36), name, code: makeCode(), created: Clock.now(),
+      settings: { studentsCanPost: true, wallVisible: true }, opened: Clock.now(),
       posts: [], shared: [], assignments: [], students: [], setupDone: false };
     classes.push(c); activeId = c.id; tab = 'activity'; save(); render();
   });
@@ -233,16 +233,16 @@ function showSettings() {
     if (!c.remote) Cloud.deleteClass(c.code).catch(() => {});
     classes = classes.filter(x => x.id !== c.id); activeId = classes.length ? classes[0].id : null; save(); closeModal(); render(); } };
 }
-function addPost(text) { const c = cur(); if (!text.trim()) return; c.posts.unshift({ id: Date.now(), by: (Cloud.profile && Cloud.profile.displayName) || 'Teacher', text: text.trim(), time: Date.now() }); save(); render(); }
+function addPost(text) { const c = cur(); if (!text.trim()) return; c.posts.unshift({ id: Clock.now(), by: (Cloud.profile && Cloud.profile.displayName) || 'Teacher', text: text.trim(), time: Clock.now() }); save(); render(); }
 // Due dates are stored as the end of the chosen day (local time); empty = no due date.
 const dueFromInput = v => v ? new Date(v + 'T23:59:59').getTime() : null;
 const dueField = () => `<label class="pf-l">Due date <small>(optional)</small></label><input type="date" id="dueIn" class="due-in">`;
 function dueLabel(a, done) {                 // "Due Fri, Oct 30" / "Due today" / "Overdue"
   if (!a.due) return '';
-  const d = new Date(a.due), today = new Date(); today.setHours(23, 59, 59, 0);
+  const d = new Date(a.due), today = new Date(Clock.now()); today.setHours(23, 59, 59, 0);
   const days = Math.round((d - today) / 864e5);
   const txt = days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : 'Due ' + d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `<span class="due ${!done && a.due < Date.now() ? 'late' : days <= 1 && !done ? 'soon' : ''}">${!done && a.due < Date.now() ? 'Overdue · ' : ''}${txt}</span>`;
+  return `<span class="due ${!done && a.due < Clock.now() ? 'late' : days <= 1 && !done ? 'soon' : ''}">${!done && a.due < Clock.now() ? 'Overdue · ' : ''}${txt}</span>`;
 }
 // Has this student finished this assignment? Quizzes: a finished game with that quiz since it was assigned.
 // Text assignments: the student ticks them off on their own device.
@@ -259,7 +259,7 @@ function addAssignment() {
   $('#modal [data-x]').onclick = closeModal;
   $('#modal [data-ok]').onclick = () => {
     const t = $('#ask').value.trim(); if (!t) return;
-    closeModal(); cur().assignments.unshift({ id: Date.now(), text: t, time: Date.now(), due: dueFromInput($('#dueIn').value) });
+    closeModal(); cur().assignments.unshift({ id: Clock.now(), text: t, time: Clock.now(), due: dueFromInput($('#dueIn').value) });
     cur().setupDone = true; tab = 'assignments'; save(); render();
   };
 }
@@ -307,7 +307,7 @@ function dashHtml(c) {
       }).join('')
     : '<div class="none">No students yet. Share the join code.</div>';
 
-  const acts = classActivity(c), today = acts.filter(a => a.time >= Date.now() - 864e5);
+  const acts = classActivity(c), today = acts.filter(a => a.time >= Clock.now() - 864e5);
   let tTot = 0, tCor = 0; today.forEach(a => { tTot += a.total; tCor += a.correct; });
   const todayHtml = `<div class="sec">Last 24 hours</div>
   <div class="today">
@@ -389,7 +389,7 @@ function showRoster() {
   $('#modal').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
     const s = students.find(x => x.id === b.dataset.rm); if (!s) return;
     if (!confirm('Remove ' + studentName(c, s) + ' from ' + c.name + '? Their results are hidden from your reports and the leaderboard' + (s.uid ? ', and they can’t rejoin with the class code (you can let them back in from this list).' : '.'))) return;
-    c.removed = c.removed || {}; c.removed[s.id] = Date.now();
+    c.removed = c.removed || {}; c.removed[s.id] = Clock.now();
     if (s.uid) { c.blocked = [...new Set([...(c.blocked || []), s.uid])]; c.blockedNames = { ...(c.blockedNames || {}), [s.uid]: studentName(c, s) }; }
     c.students = c.students.filter(x => x.id !== s.id);
     if (!c.remote) Cloud.removeStudent(c.code, s.id).catch(e => console.warn('Remove failed', e));
@@ -531,7 +531,7 @@ function render() {
   route();
 }
 
-function pick(e) { const b = e.target.closest('[data-id]'); if (!b) return; activeId = b.dataset.id; cur().opened = Date.now(); save(); tab = 'activity'; render(); FX.enter($('#classView')); }
+function pick(e) { const b = e.target.closest('[data-id]'); if (!b) return; activeId = b.dataset.id; cur().opened = Clock.now(); save(); tab = 'activity'; render(); FX.enter($('#classView')); }
 $('#classList').addEventListener('click', pick);
 $('#ownedList').addEventListener('click', pick);
 function setRail(v) { railOpen = v; try { localStorage.setItem('adminhub_rail_open', v ? '1' : '0'); } catch (e) {} render(); }
@@ -561,7 +561,7 @@ $('#classView').addEventListener('click', e => {
 $('#classView').addEventListener('change', e => {
   if (e.target.id !== 'classPick') return;
   if (e.target.value === '__new') { e.target.value = activeId; return createClass(); }
-  activeId = e.target.value; cur().opened = Date.now(); save(); tab = 'activity'; render();
+  activeId = e.target.value; cur().opened = Clock.now(); save(); tab = 'activity'; render();
 });
 $('#classView').addEventListener('keydown', e => { if (e.target.id === 'postBox' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addPost(e.target.value); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (tour && !document.querySelector('.scrim.show')) return endTour(); closeModal(); closeAuthPopup(); closeQuestionEditor(); } });
@@ -587,7 +587,7 @@ $('#notificationIcon').onclick = e => {
   e.preventDefault(); paintNotifs();
   $('#notificationMenu').classList.toggle('show'); $('#profileMenu').classList.remove('show');
   if ($('#notificationMenu').classList.contains('show')) FX.drop($('#notificationMenu'));
-  try { localStorage.setItem(NKEY, Date.now()); } catch (er) {}
+  try { localStorage.setItem(NKEY, Clock.now()); } catch (er) {}
   $('#notifNum').hidden = true;
 };
 $('#profileIcon').onclick = e => { e.preventDefault(); $('#profileMenu').classList.toggle('show'); $('#notificationMenu').classList.remove('show'); if ($('#profileMenu').classList.contains('show')) FX.drop($('#profileMenu')); };
@@ -610,14 +610,20 @@ addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt
 addEventListener('appinstalled', () => { installPrompt = null; toast('QuizSpill is installed'); });
 const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 function installApp() {
-  if (installPrompt) { const p = installPrompt; installPrompt = null; closeModal(); p.prompt(); return; }
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // School devices often block installed web apps (they open to a white screen) but allow a home-screen shortcut
+  // that opens QuizSpill in a normal browser tab, so each set of steps ends with the school-device way.
   openModal(`<h3>Install QuizSpill</h3><p class="sub">Add it to your home screen so it opens like an app.</p>
+    ${installPrompt ? `<button type="button" class="btn" id="instNow" style="width:100%;margin-bottom:12px"><i class='bx bx-download'></i> Install now</button>` : ''}
     <ol class="inst">${ios
-      ? `<li>Tap the <b>Share</b> button <i class='bx bx-share' aria-hidden="true"></i> at the bottom of Safari.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li>`
+      ? `<li>Tap the <b>Share</b> button <i class='bx bx-share' aria-hidden="true"></i> in Safari.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li>`
       : `<li>Open your browser's menu (<b>⋮</b> or <b>…</b>).</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Confirm, then open QuizSpill from your home screen.</li>`}</ol>
+    <p class="sub" style="margin-top:12px"><b>On a school ${ios ? 'iPad' : 'Chromebook'}?</b> If the app opens to a white screen, your school blocks installed apps. Remove it and use a shortcut instead: ${ios
+      ? `do the same steps, but turn <b>off</b> the <b>Open as Web App</b> switch before tapping <b>Add</b>. It will open in Safari.`
+      : `in Chrome's menu <b>⋮</b> choose <b>Cast, save, and share</b> &gt; <b>Create shortcut</b>, and leave <b>Open as window</b> unchecked. It will open in a normal tab.`}</p>
     <div class="foot"><button class="btn" data-x>Got it</button></div>`);
   $('#modal [data-x]').onclick = closeModal;
+  if ($('#instNow')) $('#instNow').onclick = () => { const p = installPrompt; installPrompt = null; closeModal(); if (p) p.prompt(); };
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker', e));
 
@@ -651,7 +657,7 @@ function exportGrades(c) {
         return Math.max(...tries.map(g => Math.round(g.answers.filter(x => x.correct).length / g.answers.length * 100))) + '%';
       }));
   });
-  downloadFile(fileSafe(c.name) + '-grades-' + new Date().toISOString().slice(0, 10) + '.csv', toCSV([head].concat(rows)), 'text/csv;charset=utf-8');
+  downloadFile(fileSafe(c.name) + '-grades-' + new Date(Clock.now()).toISOString().slice(0, 10) + '.csv', toCSV([head].concat(rows)), 'text/csv;charset=utf-8');
   toast('Downloaded grades for ' + students.length + ' student' + (students.length === 1 ? '' : 's'));
 }
 
@@ -735,7 +741,7 @@ document.querySelectorAll('[data-devtoggle]').forEach(el => el.addEventListener(
   if (!Cloud.isDev()) return;                  // everyone else: the logo does nothing, like before
   e.preventDefault(); e.stopPropagation(); setDev(!devOpen);
 }));
-const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+const utcDay = (t = Clock.now()) => new Date(t).toISOString().slice(0, 10);
 function devBars(rows, fmtLabel) {             // rows: [{label, value}] -> simple bar chart
   const max = Math.max(1, ...rows.map(r => r.value));
   return `<div class="dev-bars">${rows.map(r => `<div class="dev-bar" title="${esc(r.label)}: ${r.value}"><span style="height:${Math.round(r.value / max * 100)}%"></span><b>${r.value || ''}</b><small>${esc(fmtLabel(r.label))}</small></div>`).join('')}</div>`;
@@ -753,7 +759,7 @@ async function renderDev() {
     $('#devRefresh').onclick = renderDev; return;
   }
   if (!devOpen) return;
-  const now = Date.now(), today = utcDay(), sum = f => list.reduce((n, u) => n + (Number(f(u)) || 0), 0);
+  const now = Clock.now(), today = utcDay(), sum = f => list.reduce((n, u) => n + (Number(f(u)) || 0), 0);
   const last = n => Array.from({ length: n }, (_, i) => utcDay(now - (n - 1 - i) * 864e5));
   const teachers = list.filter(u => u.role === 'teacher').length, students = list.filter(u => u.role === 'student').length;
   const active = d => list.filter(u => (u.lastSeen || 0) >= now - d * 864e5).length;
@@ -897,7 +903,7 @@ function registerStudentInClass(c) {
   if (!c.students) c.students = [];
   let existing = c.students.find(s => s.id === studentIdentity.id);
   if (existing) {
-    existing.lastSeen = Date.now();
+    existing.lastSeen = Clock.now();
     if (!studentIdentity.name) { studentIdentity.name = existing.name; saveStudentIdentity(); }
     return existing.name;
   }
@@ -909,7 +915,7 @@ function registerStudentInClass(c) {
     name = 'Student ' + n;
   }
   studentIdentity.name = name; saveStudentIdentity();
-  c.students.push({ id: studentIdentity.id, name, joinedAt: Date.now(), lastSeen: Date.now() });
+  c.students.push({ id: studentIdentity.id, name, joinedAt: Clock.now(), lastSeen: Clock.now() });
   save();
   return name;
 }
@@ -935,9 +941,9 @@ function renderStudentJoin() {
     openStudentClass(c.id);
     registerStudentInClass(c);
     const me = c.students.find(s => s.id === studentIdentity.id);
-    Cloud.joinClass(c.code, { sid: studentIdentity.id, name: studentIdentity.name, joinedAt: me ? me.joinedAt : Date.now(), done: myDoneList(c) }).catch(() => {});
+    Cloud.joinClass(c.code, { sid: studentIdentity.id, name: studentIdentity.name, joinedAt: me ? me.joinedAt : Clock.now(), done: myDoneList(c) }).catch(() => {});
     cloudWatchStudent();
-    c.opened = Date.now(); save();
+    c.opened = Clock.now(); save();
     toast(already ? 'You’re already in ' + c.name : 'Joined ' + c.name + ' — it has its own tab now');
     route(); updateStudentSidebarExtras();
   };
@@ -984,7 +990,7 @@ function clearMistakes(r, answers) {
   if (!studentSession) return 0;
   const qs = reviewSet; let fixed = {}, n = 0;
   try { fixed = JSON.parse(localStorage.getItem(fixedKey(studentSession.classId)) || '{}'); } catch (e) {}
-  answers.forEach(a => { const q = qs && qs.questions[a.qIdx]; if (a.correct && q && q.src) { fixed[q.src] = Date.now(); n++; } });
+  answers.forEach(a => { const q = qs && qs.questions[a.qIdx]; if (a.correct && q && q.src) { fixed[q.src] = Clock.now(); n++; } });
   try { localStorage.setItem(fixedKey(studentSession.classId), JSON.stringify(fixed)); } catch (e) {}
   return n;
 }
@@ -1187,7 +1193,7 @@ function wallHtml(c, who) {
 }
 async function studentPost(c, text) {
   text = String(text || '').trim(); if (!text) return;
-  const p = { id: 'local_' + Date.now(), sid: studentIdentity.id, name: studentIdentity.name || 'Student', text: text.slice(0, 500), time: Date.now() };
+  const p = { id: 'local_' + Clock.now(), sid: studentIdentity.id, name: studentIdentity.name || 'Student', text: text.slice(0, 500), time: Clock.now() };
   c.wall = [p].concat(c.wall || []); save(); renderStudentClass();
   if (!(c.remote && c.code)) return;                 // a class on this device only (no cloud)
   try { const id = await Cloud.addPost(c.code, p); if (id) p.id = id; }
@@ -1323,7 +1329,7 @@ function renderAnalytics() {
   const own = classes.filter(c => !c.remote);
   if (!own.length) { box.innerHTML = `<div class="card"><div class="empty">Create a class first. Its stats show up here once students play.</div></div>`; return; }
   if (!own.some(c => c.id === anClassId)) anClassId = (own.find(c => c.id === activeId) || own[0]).id;
-  const c = own.find(x => x.id === anClassId), acts = classActivity(c), weekAgo = Date.now() - 7 * 864e5;
+  const c = own.find(x => x.id === anClassId), acts = classActivity(c), weekAgo = Clock.now() - 7 * 864e5;
   let tot = 0, cor = 0; acts.forEach(a => { tot += a.total; cor += a.correct; });
   // per student
   const per = {};
@@ -1391,8 +1397,8 @@ try { const r = localStorage.getItem(QKEY); if (r) qsets = JSON.parse(r); } catc
 function saveQSets() { try { localStorage.setItem(QKEY, JSON.stringify(qsets.filter(q => !q._remote))); } catch (e) {} saveRemote(); cloudPublishSoon(); }
 function getQuestionSets() { return qsets; }
 function addQuestionSet(set) {
-  set.id = set.id || 'qs_' + Date.now().toString(36);
-  set.created = set.created || Date.now();
+  set.id = set.id || 'qs_' + Clock.now().toString(36);
+  set.created = set.created || Clock.now();
   qsets.unshift(set); saveQSets();
   toast('Saved "' + set.title + '" · ' + set.questions.length + ' questions');
   if (nav === 'questions') renderQuestionSets();
@@ -1483,7 +1489,7 @@ function chooseAssignGame(qs, done) {
   $('#modal').querySelectorAll('[data-ag]').forEach(b => b.onclick = () => { if (b.disabled) return; const due = dueFromInput($('#dueIn').value); closeModal(); done(b.dataset.ag || null, due); });
 }
 function addAssignmentForClass(c, qs, game, due) {
-  c.assignments.unshift({ id: Date.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)' + (game ? ' · ' + gameName(game) : ''), time: Date.now(), kind: 'quiz', quizId: qs.id, game: game || null, due: due || null });
+  c.assignments.unshift({ id: Clock.now(), text: 'Quiz: ' + qs.title + ' (' + qs.questions.length + ' questions)' + (game ? ' · ' + gameName(game) : ''), time: Clock.now(), kind: 'quiz', quizId: qs.id, game: game || null, due: due || null });
   c.setupDone = true;
   qs.assignedTo = qs.assignedTo || [];
   if (!qs.assignedTo.includes(c.id)) qs.assignedTo.push(c.id);
@@ -1749,7 +1755,7 @@ function saveQuestionEditor() {
     real.questions = qs.questions;
     real.grade = qs.grade; real.difficulty = qs.difficulty;
   } else {
-    qs.id = qeState.originalId || ('qs_' + Date.now().toString(36));
+    qs.id = qeState.originalId || ('qs_' + Clock.now().toString(36));
     qsets.unshift(qs);
   }
   saveQSets();
@@ -1815,7 +1821,7 @@ const AI_MODEL = 'gpt-4o-mini', AI_FALLBACK = 'gpt-4o';
 let aiErrors = [];
 function logAIError(label, err, context) {
   const detail = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-  aiErrors.unshift({ time: new Date().toLocaleTimeString(), label, detail, context: context || '' });
+  aiErrors.unshift({ time: new Date(Clock.now()).toLocaleTimeString(), label, detail, context: context || '' });
   renderAIErrors(); console.error('[AI]', label, err, context || '');
 }
 function renderAIErrors() {
@@ -2080,7 +2086,7 @@ function parseQuizJSON(raw) {
 /* ===================== Boot ===================== */
 document.querySelectorAll('#sidebar .side-menu.top li a').forEach(a => a.addEventListener('click', e => e.preventDefault()));
 (function ensurePreset() {
-  if (!qsets.some(q => q.id === 'qs_preset')) { qsets.push({ id: 'qs_preset', title: 'Preset Quiz', created: Date.now(), questions: PRESET_QUESTIONS, source: 'preset' }); saveQSets(); }
+  if (!qsets.some(q => q.id === 'qs_preset')) { qsets.push({ id: 'qs_preset', title: 'Preset Quiz', created: Clock.now(), questions: PRESET_QUESTIONS, source: 'preset' }); saveQSets(); }
   const pre = qsets.find(q => q.id === 'qs_preset');   // older saved copies of the preset don't have Hangman clues yet
   if (pre && !(pre.questions || []).some(q => q.hangmanAnswer)) { pre.questions = PRESET_QUESTIONS; saveQSets(); }
 })();
@@ -2266,7 +2272,7 @@ async function importRemoteClass(code) { const d = await Cloud.fetchClass(code);
 function applyRemoteClass(d) {
   let c = classes.find(x => x.id === d.id);
   if (c && !c.remote) return c;           // this device is the teacher's own — keep its copy
-  if (!c) { c = { students: [], opened: Date.now() }; classes.push(c); }
+  if (!c) { c = { students: [], opened: Clock.now() }; classes.push(c); }
   Object.assign(c, { id: d.id, name: d.name, code: d.code, created: d.created, settings: d.settings || {}, posts: d.posts || [], shared: d.shared || [], assignments: d.assignments || [], teacher: d.teacher || null, leaderboard: d.leaderboard || [], remote: true });
   const ids = new Set((d.qsets || []).map(q => q.id));
   qsets = qsets.filter(q => q._remote !== d.code || ids.has(q.id));

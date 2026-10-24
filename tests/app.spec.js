@@ -147,6 +147,29 @@ test('the app can be installed (manifest, icons, service worker)', async ({ page
   await page.evaluate(() => openProfile());
   await page.click('#pfInstall');
   await expect(page.locator('#modal .inst li')).toHaveCount(3);
+  await expect(page.locator('#modal')).toContainText(/Create shortcut|Open as Web App/);   // school devices: a shortcut that opens in a tab
+  expect(errors).toEqual([]);
+});
+
+test('the install steps for a school iPad say to turn off Open as Web App', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' }));
+  const errors = await openApp(page);
+  await page.evaluate(() => openProfile());
+  await page.click('#pfInstall');
+  await expect(page.locator('#modal')).toContainText('Open as Web App');
+  await expect(page.locator('#modal')).toContainText('school iPad');
+  expect(errors).toEqual([]);
+});
+
+test('a device clock set a year ahead still uses the real date', async ({ page }) => {
+  const year = 365 * 864e5;
+  await page.addInitScript(y => { const real = Date.now.bind(Date); Date.now = () => real() + y; }, year);
+  const errors = await openApp(page);
+  await page.waitForFunction(() => Clock.offset() < -300 * 864e5);       // learned the real time from the server
+  const realNow = Date.now();                                              // the test runner's own (correct) clock
+  expect(Math.abs(await page.evaluate(() => Clock.now()) - realNow)).toBeLessThan(60000);
+  await createClass(page);
+  expect(Math.abs(await page.evaluate(() => classes[0].created) - realNow)).toBeLessThan(60000);
   expect(errors).toEqual([]);
 });
 

@@ -4,6 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#F9F9F9">
+<script>
+// Clock.now(): the real time, even if someone set their device clock ahead or back. It asks this site's server for its
+// time (the Date header, no database use) and remembers the difference, then re-checks whenever the app comes back.
+window.Clock = (function () {
+  var KEY = 'quizspill_clock_off', off = 0;
+  try { off = Number(localStorage.getItem(KEY)) || 0; } catch (e) {}
+  function sync() {
+    if (!window.fetch) return;
+    var t0 = Date.now();
+    fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      var server = Date.parse(r.headers.get('Date')), t1 = Date.now();
+      if (!server) return;
+      var d = server + 500 - (t0 + t1) / 2;                    // the header is whole seconds, so aim for the middle
+      off = Math.abs(d) > 30000 ? Math.round(d) : 0;           // ignore tiny differences; only fix a clock that's really off
+      try { localStorage.setItem(KEY, String(off)); } catch (e) {}
+    }).catch(function () {});                                   // offline: keep the last known difference
+  }
+  sync();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) sync(); });
+  addEventListener('online', sync);
+  return { now: function () { return Date.now() + off; }, offset: function () { return off; } };
+})();
+</script>
 <!-- ?v= on icons: browsers cache tab icons by address, so a new address makes them fetch the new logo -->
 <link rel="manifest" href="manifest.webmanifest?v=3">
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=2">
@@ -250,8 +273,8 @@ window.Splash = (function () {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <!-- bump ?v= on these (and app.js in data.js) after changing them, so browsers skip their old cached copy -->
-<script src="auth.js?v=3"></script>
-<script src="data.js?v=23"></script>
+<script src="auth.js?v=4"></script>
+<script src="data.js?v=24"></script>
 <!-- data.js loads app.js after sign-in -->
 </body>
 </html>
