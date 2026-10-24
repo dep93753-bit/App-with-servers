@@ -1773,6 +1773,8 @@ function closeQuestionEditor() {
 
 /* ===================== Game launcher ===================== */
 /* ---- THE GAMES LIST: to add a game, copy games/_template.html and add ONE line here ---- */
+// bump GAMES_V after changing anything in games/, so phones load the new game instead of an old saved copy
+const GAMES_V = 3;
 const GAMES = [
   { id: 'battleship', name: 'Battleship',     icon: 'bxs-ship',   color: '#2F65C8', file: 'games/battleship.html' },
   { id: 'bubble',     name: 'Bubble Shooter', icon: 'bxs-circle', color: '#7c3aed', file: 'games/bubble.html' },
@@ -1809,7 +1811,7 @@ function openGame(type, qs) {
   };
   gameRun = { game: type, quizId: qs_.id, answers: [] };
   Cloud.trackPlay(type);
-  frame.src = (GAMES.find(g => g.id === type) || GAMES[0]).file;
+  frame.src = (GAMES.find(g => g.id === type) || GAMES[0]).file + '?v=' + GAMES_V;
   $('#battleWrap').classList.add('show');
   document.body.style.overflow = 'hidden';
 }

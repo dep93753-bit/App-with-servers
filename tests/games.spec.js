@@ -52,7 +52,7 @@ test('connect 4: no robot claw, the robot\'s disc just drops in', async ({ page 
 test('checkers: pieces and the robot are pixel art', async ({ page }) => {
   const errors = await openGame(page, 'checkers');
   await expect(page.locator('.pc')).toHaveCount(24);
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--px-red'))).toContain('data:image/png');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--px-red'))).toContain('data:image/svg+xml');
   expect(await page.locator('#rob rect').count()).toBeGreaterThan(5);
   expect(errors).toEqual([]);
 });
