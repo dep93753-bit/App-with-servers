@@ -88,29 +88,33 @@
     });
   }
 
-  // Draw something small once and get it back as an image URL, for games built from page elements
-  function sprite(w, h, draw) {
-    var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    draw(cv.getContext('2d'), w, h);
-    return cv.toDataURL();
-  }
-
-  // Draw on a small canvas, get it back as SVG squares (one <rect> per run of same-colored pixels). Pixel art made of
-  // SVG squares stays sharp at any size on every browser, and its parts can still be moved and animated.
-  function svg(w, h, draw) {
+  // Draw on a small canvas and read it back as squares: one <rect> per run of same-colored pixels in a row
+  function rects(w, h, draw) {
     var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     var g = cv.getContext('2d'); draw(g, w, h);
     var d = g.getImageData(0, 0, w, h).data, out = '';
+    var hx = function (i) { return '#' + ((1 << 24) | (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).slice(1); };
     for (var y = 0; y < h; y++) for (var x = 0; x < w;) {
       var i = (y * w + x) * 4;
       if (d[i + 3] < 128) { x++; continue; }
       var x2 = x + 1;
       while (x2 < w) { var k = (y * w + x2) * 4; if (d[k + 3] < 128 || d[k] !== d[i] || d[k + 1] !== d[i + 1] || d[k + 2] !== d[i + 2]) break; x2++; }
-      out += '<rect x="' + x + '" y="' + y + '" width="' + (x2 - x) + '" height="1" fill="rgb(' + d[i] + ',' + d[i + 1] + ',' + d[i + 2] + ')"/>';
+      out += '<rect x="' + x + '" y="' + y + '" width="' + (x2 - x) + '" height="1" fill="' + hx(i) + '"/>';
       x = x2;
     }
-    return '<g shape-rendering="crispEdges">' + out + '</g>';
+    return out;
   }
+
+  // Small pixel pictures for games built from page elements (pieces, holes, crowns). They come back as a vector image
+  // made of squares, not a tiny bitmap: iPhone Safari blurs stretched bitmaps, but squares stay sharp at any size.
+  function sprite(w, h, draw) {
+    var svgText = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h +
+      '" preserveAspectRatio="none" shape-rendering="crispEdges">' + rects(w, h, draw) + '</svg>';
+    return 'data:image/svg+xml,' + encodeURIComponent(svgText).replace(/\(/g, '%28').replace(/\)/g, '%29');
+  }
+
+  // The same squares as inline SVG markup, for pictures with moving parts (the Checkers robot's blinking eyes)
+  function svg(w, h, draw) { return '<g shape-rendering="crispEdges">' + rects(w, h, draw) + '</g>'; }
 
   window.PX = { shade: shade, block: block, disc: disc, ring: ring, line: line, map: map, sprite: sprite, svg: svg };
 })();
