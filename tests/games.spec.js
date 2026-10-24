@@ -1,7 +1,7 @@
 // The pixel-art look shared by the games (games/pixel.js). Each game is opened on its own page.
 const { test, expect } = require('@playwright/test');
 
-const PIXEL_GAMES = ['tetris', 'checkers', 'connect4'];   // more join as they are converted
+const PIXEL_GAMES = ['tetris', 'checkers', 'connect4', 'bubble'];   // more join as they are converted
 
 async function openGame(page, id) {
   const errors = [];
@@ -54,5 +54,13 @@ test('checkers: pieces and the robot are pixel art', async ({ page }) => {
   await expect(page.locator('.pc')).toHaveCount(24);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--px-red'))).toContain('data:image/svg+xml');
   expect(await page.locator('#rob rect').count()).toBeGreaterThan(5);
+  expect(errors).toEqual([]);
+});
+
+test('bubble shooter: drawn on a small pixel canvas and can still shoot', async ({ page }) => {
+  const errors = await openGame(page, 'bubble');
+  expect(await page.evaluate(() => [document.getElementById('cv').width, document.getElementById('cv').height])).toEqual([200, 280]);
+  await page.click('#fireBtn');
+  await expect(page.locator('#ammoVal')).toContainText('4');
   expect(errors).toEqual([]);
 });

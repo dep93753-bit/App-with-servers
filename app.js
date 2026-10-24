@@ -1774,7 +1774,7 @@ function closeQuestionEditor() {
 /* ===================== Game launcher ===================== */
 /* ---- THE GAMES LIST: to add a game, copy games/_template.html and add ONE line here ---- */
 // bump GAMES_V after changing anything in games/, so phones load the new game instead of an old saved copy
-const GAMES_V = 3;
+const GAMES_V = 4;
 const GAMES = [
   { id: 'battleship', name: 'Battleship',     icon: 'bxs-ship',   color: '#2F65C8', file: 'games/battleship.html' },
   { id: 'bubble',     name: 'Bubble Shooter', icon: 'bxs-circle', color: '#7c3aed', file: 'games/bubble.html' },
