@@ -41,11 +41,30 @@ h1{color:#2a2118}.pl,#status,select,.ctl button,#ov button{background:#fff8e6!im
 .sel::before{box-shadow:0 0 0 .06em #ffd23f,0 .06em 0 #2a2118}
 .tg::after{background:#ffd23f;border:3px solid #2a2118;box-shadow:none;animation:none}
 #ov div{background:#fff8e6;color:#2a2118;border:4px solid #2a2118;box-shadow:6px 6px 0 #2a2118}
-#hud{font-weight:700;font-size:14px}#hud b{color:#ef5b4c}
-</style></head><body><main>
+#hud{font-weight:700;font-size:15px}#hud b{color:#ef5b4c}
+/* ===== retro look (games/pixel.js): flat colors, chunky pixels, 8-bit font, no shading or shadows ===== */
+body{font-size:10px}
+h1{font-size:clamp(10px,3vw,18px);letter-spacing:.06em}h1 span{font-size:.5em;letter-spacing:.1em;margin-top:6px}
+.pl,#status,select,.ctl button,#ov div,#ov button{border-radius:0!important;box-shadow:none!important}
+.pl{gap:6px!important;padding:6px 8px!important}.pl small{margin-top:4px;font-size:8px;white-space:nowrap}.av{width:26px!important;height:26px!important}#rob{width:32px;height:32px}
+#status{font-size:10px;padding:8px 12px}
+#hud{font-size:10px!important}
+select,.ctl button{font-size:10px!important;padding:10px 12px!important}
+#board{background:var(--px-board) 0 0/calc(var(--s)*2) calc(var(--s)*2);image-rendering:pixelated}
+.frame{border-radius:0;background:#b5683c;box-shadow:none}
+.pc::before{background:var(--img) center/100% 100% no-repeat;border:none;border-radius:0;box-shadow:none;image-rendering:pixelated}
+.pc::after{display:none}
+.h{--img:var(--px-red)}.a{--img:var(--px-blue)}
+.pc i{background:var(--px-crown) center/100% 100% no-repeat;clip-path:none;image-rendering:pixelated;left:30%;top:33%;width:40%;height:29%}
+.mv::before{box-shadow:none}
+.sel::before{box-shadow:none;outline:3px solid #ffd23f;outline-offset:2px}
+.tg::after{background:var(--px-dot) center/100% 100% no-repeat;border:none;border-radius:0;image-rendering:pixelated}
+.av{background:var(--px-red) center/100% 100% no-repeat;border:none;border-radius:0;image-rendering:pixelated}
+.rob .ey{transform-box:fill-box;transform-origin:center}
+</style></head><body class="px"><main>
 <header><div class="pl"><span class="av"></span><div><b>You</b><small id="nh">12 pieces</small></div></div>
 <h1>Checkers<span>human vs robot</span></h1>
-<div class="pl r"><svg class="rob" id="rob" viewBox="0 0 64 64" width="42" height="42"><path d="M32 4v10" stroke="#8aa0b3" stroke-width="3"/><circle cx="32" cy="5" r="4" fill="#3ee6ff"/><rect x="8" y="14" width="48" height="40" rx="12" fill="#cfd9e3" stroke="#33414f" stroke-width="3"/><rect x="14" y="24" width="36" height="18" rx="9" fill="#17212b"/><circle class="ey" cx="25" cy="33" r="4.5" fill="#3ee6ff"/><circle class="ey" cx="39" cy="33" r="4.5" fill="#3ee6ff"/><rect x="22" y="46" width="20" height="3" rx="1.5" fill="#33414f"/></svg><div><b>RX‑9</b><small id="na">12 pieces</small></div></div></header>
+<div class="pl r"><svg class="rob" id="rob" viewBox="0 0 64 64" width="42" height="42"><path d="M32 4v10" stroke="#8aa0b3" stroke-width="3"/><circle cx="32" cy="5" r="4" fill="#3ee6ff"/><rect x="8" y="14" width="48" height="40" rx="12" fill="#cfd9e3" stroke="#33414f" stroke-width="3"/><rect x="14" y="24" width="36" height="18" rx="9" fill="#17212b"/><circle class="ey" cx="25" cy="33" r="4.5" fill="#3ee6ff"/><circle class="ey" cx="39" cy="33" r="4.5" fill="#3ee6ff"/><rect x="22" y="46" width="20" height="3" rx="1.5" fill="#33414f"/></svg><div><b>RX-9</b><small id="na">12 pieces</small></div></div></header>
 <div id="status">Your move</div>
 <div id="hud">Question in <b id="am">3</b> moves</div>
 <div class="frame"><div id="board"><div id="hl"></div><div id="pieces"></div></div></div>
@@ -53,6 +72,36 @@ h1{color:#2a2118}.pl,#status,select,.ctl button,#ov button{background:#fff8e6!im
 </main>
 <div id="ov" hidden><div><h2 id="ovt"></h2><button id="ob">Play again</button></div></div>
 <script src="quiz-modal.js"></script>
+<script src="pixel.js"></script>
+<script>
+/* Retro pixel art for the pieces, board, crown and robot, drawn once at start and handed to the CSS */
+(function(){
+  const INK='#2a2118', root=document.documentElement.style, url=u=>'url('+u+')';
+  const piece=c=>PX.sprite(12,12,g=>PX.disc(g,6,6,6,c,{outline:INK,noShine:true}));   // one flat color
+  root.setProperty('--px-red',url(piece('#ef5b4c')));
+  root.setProperty('--px-blue',url(piece('#3cc0d6')));
+  root.setProperty('--px-crown',url(PX.sprite(7,5,g=>PX.map(g,['Y..Y..Y','YYYYYYY','YYYYYYY','YYYYYYY','YYYYYYY'],{Y:'#ffd23f'}))));
+  root.setProperty('--px-dot',url(PX.sprite(6,6,g=>PX.disc(g,3,3,3,'#ffd23f',{outline:INK,noShine:true}))));
+  root.setProperty('--px-board',url(PX.sprite(2,2,g=>{g.fillStyle='#f6e3b4';g.fillRect(0,0,2,2);g.fillStyle='#c8794a';g.fillRect(1,0,1,1);g.fillRect(0,1,1,1)})));
+  // the robot's head as pixel squares; its eyes are separate so they can still blink while it thinks
+  const C={k:'#33414f',g:'#cfd9e3',v:'#17212b',c:'#3ee6ff'};
+  const body=PX.svg(16,16,g=>PX.map(g,[
+    '.......c........',
+    '.......k........',
+    '..kkkkkkkkkkkk..',
+    '..kggggggggggk..',
+    '..kgvvvvvvvvgk..',
+    '..kgvvvvvvvvgk..',
+    '..kgvvvvvvvvgk..',
+    '..kgvvvvvvvvgk..',
+    '..kggggggggggk..',
+    '..kgggkkkkgggk..',
+    '..kggggggggggk..',
+    '..kkkkkkkkkkkk..'],C,0,2));
+  const eye=x=>'<g class="ey">'+PX.svg(16,16,g=>{g.fillStyle=C.c;g.fillRect(x,7,2,2)})+'</g>';
+  const rob=document.getElementById('rob');rob.setAttribute('viewBox','0 0 16 16');rob.innerHTML=body+eye(5)+eye(9);
+})();
+</script>
 <script>
 const $=q=>document.querySelector(q);
 const B=$('#board'),PL=$('#pieces'),HL=$('#hl');
@@ -244,7 +293,7 @@ function startHuman(){
   legal=gen(b,1);
   clearSel();
   $('#rob').classList.remove('think');
-  if(!legal.length){ end('RX‑9 wins!'); return; }
+  if(!legal.length){ end('RX-9 wins!'); return; }
   if(KIT.ammo<=0){
     busy=true;mark();status(KIT.answers.length&&!KIT.answers[KIT.answers.length-1].correct?'Not quite — try this one!':'Question time!');
     KIT.ask(startHuman);
@@ -260,7 +309,7 @@ function finishTurn(m,side){
   if(side===1){KIT.ammo--;hud();}
   if(m.caps.length)q=0; else q++;
   const nx=gen(b,-side);
-  if(!nx.length)return end(side===1?'You win!':'RX‑9 wins!');
+  if(!nx.length)return end(side===1?'You win!':'RX-9 wins!');
   if(q>=80)return end('It’s a draw');
   if(side===1)aiTurn(); else startHuman();
 }
@@ -345,11 +394,11 @@ async function aiTurn(){
   turn=-1;busy=true;
   clearSel();mark();
   $('#rob').classList.add('think');
-  status('RX‑9 is thinking…');
+  status('RX-9 is thinking…');
   await wait(650);
 
   const m=pick();
-  status('RX‑9 is moving…');
+  status('RX-9 is moving…');
   await robot(m);
 
   b=apply(b,m,-1);
