@@ -6,26 +6,25 @@
 <title>Tetris</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
-  body{background:linear-gradient(160deg,#020617,#0f172a);color:#f1f5f9;font-family:"Outfit",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:8px;touch-action:manipulation}
-  .hud{display:flex;gap:14px;font-weight:700;font-size:14px;margin-bottom:6px}.hud b{color:#38bdf8}
+  body{background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:8px;touch-action:manipulation}
+  .hud{display:flex;gap:14px;font-weight:600;font-size:16px;margin:4px 0 10px}.hud b{color:#38bdf8}
   .play{display:flex;gap:10px;align-items:flex-start}
-  canvas{display:block;border-radius:10px;border:2px solid #2e3643;background:#0f121a}
+  canvas{display:block;background:#0f121a}
   #board{height:min(600px,64vh);aspect-ratio:1/2;width:auto}
-  .side{display:flex;flex-direction:column;align-items:center;gap:8px;width:88px}
-  .side small{font-size:11px;letter-spacing:2px;color:#8892a7;text-transform:uppercase}
+  .side{display:flex;flex-direction:column;align-items:center;gap:10px;width:88px}
+  .side small{font-size:13px;letter-spacing:2px;color:#8892a7;text-transform:uppercase}
   #next{width:84px;height:84px}
   .pad{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
-  .btn{padding:11px 0;border:none;border-radius:10px;background:rgba(255,255,255,.2);color:inherit;font-family:inherit;font-weight:700;font-size:18px;cursor:pointer;touch-action:manipulation}
-  .btn:active{transform:scale(.93)}
-  .wide{grid-column:1/-1;font-size:13px;letter-spacing:1px}
+  .btn{padding:11px 0;background:#334155;color:inherit;font-weight:700;font-size:18px;cursor:pointer;touch-action:manipulation}
+  .wide{grid-column:1/-1;font-size:15px;letter-spacing:1px}
 </style>
 </head>
-<body>
+<body class="px">
 <div class="hud"><span>Lines <b id="sc">0</b>/10</span><span>Pieces <b id="am">0</b></span><span>Strikes <b id="wr">0</b>/3</span></div>
 <div class="play">
-  <canvas id="board" width="300" height="600"></canvas>
+  <canvas id="board" class="pxframe" width="150" height="300"></canvas>
   <div class="side">
-    <small>Next</small><canvas id="next" width="120" height="120"></canvas>
+    <small>Next</small><canvas id="next" class="pxframe" width="60" height="60"></canvas>
     <div class="pad">
       <button class="btn" id="bL">◀</button><button class="btn" id="bR">▶</button>
       <button class="btn" id="bRot">↻</button><button class="btn" id="bD">▼</button>
@@ -35,10 +34,11 @@
 </div>
 
 <script src="quiz-modal.js"></script>
+<script src="pixel.js"></script>
 <script>
 (function () {
   "use strict";
-  var COLS = 10, ROWS = 20, B = 30, WIN_LINES = 10, POINTS = [0, 100, 300, 600, 1000];
+  var COLS = 10, ROWS = 20, B = 15, WIN_LINES = 10, POINTS = [0, 100, 300, 600, 1000];
   var PIECES = [
     { s: [[1,1,1,1]], c: '#3ac7e6' }, { s: [[1,1],[1,1]], c: '#f5e03a' }, { s: [[0,1,0],[1,1,1]], c: '#b484e0' },
     { s: [[0,1,1],[1,1,0]], c: '#5fdb6b' }, { s: [[1,1,0],[0,1,1]], c: '#e85f5f' },
@@ -86,21 +86,16 @@
   function drop() { while (move(0, 1)); lock(); draw(); }
   function tick() { if (paused || K.over) return; if (!move(0, 1)) lock(); draw(); }
 
-  function block(g, x, y, s, c) {
-    g.fillStyle = c; g.fillRect(x, y, s, s);
-    g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(x, y, s, s * .15);
-    g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(x, y + s * .85, s, s * .15);
-    g.strokeStyle = '#0b0e14'; g.lineWidth = 1.5; g.strokeRect(x, y, s, s);
-  }
+  // Board drawn at half size (150 x 300 art pixels), shown 2x with crisp pixels
   function draw() {
-    cx.clearRect(0, 0, 300, 600); cx.strokeStyle = '#202631'; cx.lineWidth = .5;
-    for (var i = 0; i <= COLS; i++) { cx.beginPath(); cx.moveTo(i * B, 0); cx.lineTo(i * B, 600); cx.stroke(); }
-    for (i = 0; i <= ROWS; i++) { cx.beginPath(); cx.moveTo(0, i * B); cx.lineTo(300, i * B); cx.stroke(); }
-    board.forEach(function (row, r) { row.forEach(function (c, x) { if (c) block(cx, x * B, r * B, B, c); }); });
-    if (cur) cur.s.forEach(function (row, r) { row.forEach(function (v, c) { if (v && cur.y + r >= 0) block(cx, (cur.x + c) * B, (cur.y + r) * B, B, cur.c); }); });
-    nx.clearRect(0, 0, 120, 120);
-    if (nxt) { var s = 24, ox = (120 - nxt.s[0].length * s) / 2, oy = (120 - nxt.s.length * s) / 2;
-      nxt.s.forEach(function (row, r) { row.forEach(function (v, c) { if (v) block(nx, ox + c * s, oy + r * s, s, nxt.c); }); }); }
+    cx.fillStyle = '#0f121a'; cx.fillRect(0, 0, 150, 300);
+    cx.fillStyle = '#232a37';                                            // dotted grid: one pixel at each cell corner
+    for (var gy = 1; gy < ROWS; gy++) for (var gx = 1; gx < COLS; gx++) cx.fillRect(gx * B, gy * B, 1, 1);
+    board.forEach(function (row, r) { row.forEach(function (c, x) { if (c) PX.block(cx, x * B, r * B, B, c); }); });
+    if (cur) cur.s.forEach(function (row, r) { row.forEach(function (v, c) { if (v && cur.y + r >= 0) PX.block(cx, (cur.x + c) * B, (cur.y + r) * B, B, cur.c); }); });
+    nx.fillStyle = '#0f121a'; nx.fillRect(0, 0, 60, 60);
+    if (nxt) { var s = 12, ox = Math.round((60 - nxt.s[0].length * s) / 2), oy = Math.round((60 - nxt.s.length * s) / 2);
+      nxt.s.forEach(function (row, r) { row.forEach(function (v, c) { if (v) PX.block(nx, ox + c * s, oy + r * s, s, nxt.c); }); }); }
   }
   function start() {
     board = Array.from({ length: ROWS }, function () { return Array(COLS).fill(null); });
@@ -115,6 +110,7 @@
     var m = { ArrowLeft: function () { move(-1, 0); }, ArrowRight: function () { move(1, 0); }, ArrowUp: rotate, ArrowDown: function () { if (!move(0, 1)) lock(); }, ' ': drop }[e.key];
     if (m) act(m)(e);
   });
+  PX.background('#020617', '#0f172a');
   start();
 })();
 </script>

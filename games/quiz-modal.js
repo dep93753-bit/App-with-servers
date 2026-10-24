@@ -82,7 +82,7 @@ function GameKit(o) {
   k.end = function (won) {                                  // game over: show result + tell the app
     if (k.over) return; k.over = true;
     var d = document.createElement('div'); d.className = 'kit-end';
-    d.innerHTML = '<div><h2>' + (won ? '🎉 You win!' : 'Game over') + '</h2><p>Score ' + o.getScore() + '</p><button class="btn">Play again</button></div>';
+    d.innerHTML = '<div><h2>' + (won ? 'You win!' : 'Game over') + '</h2><p>Score ' + o.getScore() + '</p><button class="btn">Play again</button></div>';
     d.querySelector('button').onclick = function () { d.remove(); k.over = false; k.ammo = o.ammo; k.wrong = 0; k.answers = []; idx = 0; o.restart(); };
     document.body.appendChild(d);
     try { window.parent.postMessage({ type: 'gameEnd', game: o.id, quizId: QUIZ_ID, won: won, score: o.getScore(), answers: k.answers }, '*'); } catch (e) {}
