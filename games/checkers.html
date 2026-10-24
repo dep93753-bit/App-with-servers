@@ -50,7 +50,8 @@ h1{font-size:clamp(10px,3vw,18px);letter-spacing:.06em}h1 span{font-size:.5em;le
 #status{font-size:10px;padding:8px 12px}
 #hud{font-size:10px!important}
 select,.ctl button{font-size:10px!important;padding:10px 12px!important}
-#board{background:var(--px-board) 0 0/calc(var(--s)*2) calc(var(--s)*2);image-rendering:pixelated}
+#board{background:repeating-conic-gradient(#c8794a 0 25%,#f6e3b4 0 50%) 0 0/calc(var(--s)*2) calc(var(--s)*2)}   /* flat squares, sharp on every browser */
+@media(max-width:600px){main{padding-top:58px}}   /* room for the app's close button */
 .frame{border-radius:0;background:#b5683c;box-shadow:none}
 .pc::before{background:var(--img) center/100% 100% no-repeat;border:none;border-radius:0;box-shadow:none;image-rendering:pixelated}
 .pc::after{display:none}
@@ -82,7 +83,6 @@ select,.ctl button{font-size:10px!important;padding:10px 12px!important}
   root.setProperty('--px-blue',url(piece('#3cc0d6')));
   root.setProperty('--px-crown',url(PX.sprite(7,5,g=>PX.map(g,['Y..Y..Y','YYYYYYY','YYYYYYY','YYYYYYY','YYYYYYY'],{Y:'#ffd23f'}))));
   root.setProperty('--px-dot',url(PX.sprite(6,6,g=>PX.disc(g,3,3,3,'#ffd23f',{outline:INK,noShine:true}))));
-  root.setProperty('--px-board',url(PX.sprite(2,2,g=>{g.fillStyle='#f6e3b4';g.fillRect(0,0,2,2);g.fillStyle='#c8794a';g.fillRect(1,0,1,1);g.fillRect(0,1,1,1)})));
   // the robot's head as pixel squares; its eyes are separate so they can still blink while it thinks
   const C={k:'#33414f',g:'#cfd9e3',v:'#17212b',c:'#3ee6ff'};
   const body=PX.svg(16,16,g=>PX.map(g,[
