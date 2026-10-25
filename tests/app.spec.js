@@ -283,9 +283,10 @@ test('developer account: tapping the seesaw flips it and opens the developer pag
   await expect(page.locator('#devView .dev-row').first()).toContainText('Hangman');
   await expect(stats.filter({ hasText: 'reads today' })).toContainText('120');
   await expect(stats.filter({ hasText: 'writes today' })).toContainText('9');
-  // the seesaw tips to the other side (CSS plank rotation flips sign)
-  const tilt = await page.locator('.seesaw:visible .ss-plank').first().evaluate(el => new DOMMatrix(getComputedStyle(el).transform).b);
-  expect(tilt).toBeGreaterThan(0);
+  // the seesaw tips to the other side (CSS plank rotation flips sign). Wait for the tip-over animation to settle:
+  // a single read can land mid-swing on a slow machine.
+  const plank = page.locator('.seesaw:visible .ss-plank').first();
+  await expect.poll(() => plank.evaluate(el => new DOMMatrix(getComputedStyle(el).transform).b)).toBeGreaterThan(0.15);
   // tap again: back to normal
   await page.locator('[data-devtoggle]:visible').first().click();
   await expect(page.locator('body')).not.toHaveClass(/dev-on/);
