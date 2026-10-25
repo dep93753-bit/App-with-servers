@@ -1774,7 +1774,7 @@ function closeQuestionEditor() {
 /* ===================== Game launcher ===================== */
 /* ---- THE GAMES LIST: to add a game, copy games/_template.html and add ONE line here ---- */
 // bump GAMES_V after changing anything in games/, so phones load the new game instead of an old saved copy
-const GAMES_V = 4;
+const GAMES_V = 5;
 const GAMES = [
   { id: 'battleship', name: 'Battleship',     icon: 'bxs-ship',   color: '#2F65C8', file: 'games/battleship.html' },
   { id: 'bubble',     name: 'Bubble Shooter', icon: 'bxs-circle', color: '#7c3aed', file: 'games/bubble.html' },
@@ -1952,9 +1952,20 @@ function updateAuthBadge() {
   else { icon.className = 'bx bx-loader-alt spin'; text.textContent = 'Checking…'; }
 }
 
-const AI_PROMPT = (n, topic, notes) => `You are a quiz generator. Return ONLY valid JSON. No prose, no markdown.
-Shape: {"title":"...","questions":[{"question":"...","options":["A","B","C","D"],"correct":0,"timeLimit":20,"explanation":"...","hangmanClue":"...","hangmanAnswer":"..."}]}
+const AI_PROMPT = (n, topic, notes) => `You are a careful teacher writing a classroom quiz. Students are graded on it, so every answer key must be correct.
+Return ONLY valid JSON. No prose, no markdown.
+Shape: {"title":"...","questions":[{"question":"...","options":["A","B","C","D"],"answer":"exact text of the correct option","correct":0,"timeLimit":20,"explanation":"...","hangmanClue":"...","hangmanAnswer":"..."}]}
 Make EXACTLY ${n} questions. Topic: ${topic}. Notes: ${notes || '(none)'}.
+If notes are given, base the questions on the notes and use the notes' facts as the answer key.
+
+Accuracy rules (most important):
+- Only ask about well-established facts that a textbook or encyclopedia agrees on. Skip anything you are not sure of.
+- Exactly ONE option is correct. The other three must be clearly wrong, not "also partly true" and not a matter of opinion.
+- Avoid vague comparisons like "older", "better", "most common" or "first" unless the fact is famous and certain (for example: which came first, spearfishing or hook-and-line fishing? Spearfishing is far older, so it would be the answer).
+- Work out the answer first, then write the options. "answer" must be copied character-for-character from the correct option, and "correct" must be that option's position (0 = first, 3 = last).
+- Mix up where the correct option goes (don't always put it first).
+- "explanation": one or two sentences that name the correct option and say why it is right.
+
 Every question ALSO needs a separate Hangman puzzle on the same topic (used only by the Hangman game, never shown with the multiple-choice question):
 - "hangmanClue": a short clue or fill-in prompt, different from the multiple-choice question.
 - "hangmanAnswer": the answer to that clue, 1 to 3 words (5 words absolute max, 25 letters max), letters and numbers only, no punctuation. Example: {"hangmanClue":"He was president during the Civil War","hangmanAnswer":"Abraham Lincoln"}.`;
@@ -2081,8 +2092,20 @@ function parseQuizJSON(raw) {
   const f = s.indexOf('{'), l = s.lastIndexOf('}'); if (f === -1 || l === -1) return null;
   let obj; try { obj = JSON.parse(s.slice(f, l + 1)); } catch (e) { return null; }
   if (!obj || !Array.isArray(obj.questions)) return null;
-  obj.questions = obj.questions.filter(q => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length === 4 && q.options.every(o => typeof o === 'string' && o.length) && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < 4).map(q => ({ question: q.question, options: q.options.slice(0, 4), correct: q.correct, timeLimit: Number.isFinite(q.timeLimit) ? q.timeLimit : 20, explanation: typeof q.explanation === 'string' ? q.explanation : '', ...hangmanFields(q) }));
+  obj.questions = obj.questions.map(answerKey).filter(q => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length === 4 && q.options.every(o => typeof o === 'string' && o.length) && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < 4).map(q => ({ question: q.question, options: q.options.slice(0, 4), correct: q.correct, timeLimit: Number.isFinite(q.timeLimit) ? q.timeLimit : 20, explanation: typeof q.explanation === 'string' ? q.explanation : '', ...hangmanFields(q) }));
   return obj;
+}
+// The AI also writes the correct answer out as text. Trust that text over its index (the index is the part AIs get
+// wrong): point "correct" at the option that matches it, and drop the question if the answer matches no option or
+// two options are the same, since its answer key can't be trusted.
+function answerKey(q) {
+  if (!q || !Array.isArray(q.options)) return q;
+  const norm = t => String(t).toLowerCase().replace(/^[a-d][.)]\s+/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const opts = q.options.map(norm);
+  if (new Set(opts).size !== opts.length) return null;
+  if (typeof q.answer !== 'string' || !q.answer.trim()) return q;          // older replies without "answer": keep the index
+  const i = opts.indexOf(norm(q.answer));
+  return i === -1 ? null : { ...q, correct: i };
 }
 
 /* ===================== Boot ===================== */

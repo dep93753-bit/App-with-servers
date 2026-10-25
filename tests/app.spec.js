@@ -394,3 +394,15 @@ test('teacher mode never shows a class you only joined as a student', async ({ p
   await expect(page.locator('#ownedList .cls')).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+test('AI quiz: the written-out answer decides which option is correct; untrustworthy questions are dropped', async ({ page }) => {
+  const errors = await openApp(page);
+  const r = await page.evaluate(() => parseQuizJSON(JSON.stringify({ questions: [
+    { question: 'Which fishing method is older?', options: ['Hook and line', 'Spearfishing', 'Trawling', 'Fly fishing'], answer: 'Spearfishing', correct: 0 },
+    { question: '2 + 2?', options: ['3', '4', '5', '6'], correct: 1 },
+    { question: 'Answer matches nothing', options: ['a', 'b', 'c', 'd'], answer: 'zebra', correct: 0 },
+    { question: 'Two options the same', options: ['x', 'x', 'y', 'z'], answer: 'y', correct: 2 }
+  ] })).questions.map(q => q.options[q.correct]));
+  expect(r).toEqual(['Spearfishing', '4']);
+  expect(errors).toEqual([]);
+});
