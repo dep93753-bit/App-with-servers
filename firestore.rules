@@ -7,9 +7,9 @@ service cloud.firestore {
       return signedIn() &&
         get(/databases/$(database)/documents/classes/$(code)).data.ownerUid == request.auth.uid;
     }
-    // The app's developer: may read everyone's usage record (no names or emails are in it).
+    // The app's developers: may read everyone's usage record (no names or emails are in it).
     function isDev() {
-      return signedIn() && request.auth.token.email == 'hatfieldnathan@oacsd.org' && request.auth.token.email_verified == true;
+      return signedIn() && request.auth.token.email in ['hatfieldnathan@oacsd.org', 'toolelucas@oacsd.org'] && request.auth.token.email_verified == true;
     }
     // Students the teacher removed AND blocked (their account ids are in the class's "blocked" list).
     // Signed-in person who has joined the class (has an entry on its roster).

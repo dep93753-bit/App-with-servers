@@ -755,7 +755,7 @@ async function renderDev() {
   let list;
   try { list = await Cloud.devStats(); }
   catch (e) {
-    box.innerHTML = head + `<div class="card"><div class="none">Firebase didn’t allow this (${esc(e.code || e.message)}).<br>Publish the latest <b>firestore.rules</b> in the Firebase console, and sign in with Google as hatfieldnathan@oacsd.org.</div></div>`;
+    box.innerHTML = head + `<div class="card"><div class="none">Firebase didn’t allow this (${esc(e.code || e.message)}).<br>Publish the latest <b>firestore.rules</b> in the Firebase console, and sign in with Google as a developer account.</div></div>`;
     $('#devRefresh').onclick = renderDev; return;
   }
   if (!devOpen) return;
