@@ -19,7 +19,7 @@ window.Cloud = (function () {
     watchClass: off, watchStudents: off, watchScores: off
   };
   // bump ?v= when app.js changes so browsers fetch the new copy instead of an old cached one
-  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=27'; document.body.appendChild(s); };
+  const startApp = () => { const s = document.createElement('script'); s.src = 'app.js?v=28'; document.body.appendChild(s); };
 
   if (!window.firebase) {                       // Firebase blocked/offline: run the app on this device only
     console.warn('[Cloud] Firebase did not load — running offline.');
@@ -223,8 +223,9 @@ window.Cloud = (function () {
   };
 
   /* ---------- usage numbers for the developer page (no names or emails, just counts) ---------- */
-  const DEV_EMAIL = 'hatfieldnathan@oacsd.org';
-  api.isDev = () => !!(api.user && api.user.emailVerified && (api.user.email || '').toLowerCase() === DEV_EMAIL);
+  // Google accounts that can open the developer page (keep in step with isDev() in firestore.rules)
+  const DEV_EMAILS = ['hatfieldnathan@oacsd.org', 'toolelucas@oacsd.org'];
+  api.isDev = () => !!(api.user && api.user.emailVerified && DEV_EMAILS.includes((api.user.email || '').toLowerCase()));
   const usageRef = () => db.collection('usage').doc(api.uid);
   const inc = n => firebase.firestore.FieldValue.increment(n);
   const quiet = fn => async (...a) => { if (!(await api.ready)) return null; try { return await fn(...a); } catch (e) { console.warn('[usage]', e.code || e.message); return null; } };
